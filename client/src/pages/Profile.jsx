@@ -1,114 +1,185 @@
 import { useSelector } from 'react-redux';
-import { useRef, useState } from 'react';
-import imagekit from '../imageKitConfig'; // Nhớ import cấu hình ImageKit
-
+import { useRef, useState, useEffect } from 'react';
+import {
+  getDownloadURL,
+  getStorage,
+  ref,
+  uploadBytesResumable,
+} from 'firebase/storage';
+import { app } from '../firebase';
+import {
+  updateUserStart,
+  updateUserSuccess,
+  updateUserFailure,
+  deleteUserFailure,
+  deleteUserStart,
+  deleteUserSuccess,
+} from '../redux/user/userSlice';
+import { useDispatch } from 'react-redux';
 export default function Profile() {
-  const { currentUser } = useSelector((state) => state.user);
   const fileRef = useRef(null);
-  
-  // Tạo state để theo dõi file, tiến độ và lỗi
-  const [file, setFile] = useState(null);
+  const { currentUser, loading, error } = useSelector((state) => state.user);
+  const [file, setFile] = useState(undefined);
   const [filePerc, setFilePerc] = useState(0);
   const [fileUploadError, setFileUploadError] = useState(false);
+  const [formData, setFormData] = useState({});
+  const [updateSuccess, setUpdateSuccess] = useState(false);
+  const dispatch = useDispatch();
 
-  // Hàm xử lý khi người dùng chọn file ảnh
-  const handleFileChange = (e) => {
-    setFile(e.target.files[0]);
-  };
+  // firebase storage
+  // allow read;
+  // allow write: if
+  // request.resource.size < 2 * 1024 * 1024 &&
+  // request.resource.contentType.matches('image/.*')
 
-  // Hàm xử lý tải ảnh lên ImageKit
-  const handleFileUpload = () => {
-    if (!file) {
-      setFileUploadError(true);
-      return;
+  useEffect(() => {
+    if (file) {
+      handleFileUpload(file);
     }
+  }, [file]);
 
-    // Tạo tên file duy nhất
+  const handleFileUpload = (file) => {
+    const storage = getStorage(app);
     const fileName = new Date().getTime() + file.name;
+    const storageRef = ref(storage, fileName);
+    const uploadTask = uploadBytesResumable(storageRef, file);
 
-    // Tạo upload task từ ImageKit
-    const uploadTask = imagekit.upload({
-      file: file, // File cần upload
-      fileName: fileName, // Tên file
-      onProgress: (progress) => {
-        const percentage = (progress.loaded / progress.total) * 100;
-        setFilePerc(Math.round(percentage)); // Cập nhật tiến độ upload
+    uploadTask.on(
+      'state_changed',
+      (snapshot) => {
+        const progress =
+          (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+        setFilePerc(Math.round(progress));
       },
-    });
-
-    // Xử lý upload thành công hoặc thất bại
-    uploadTask
-      .then((response) => {
-        console.log("Upload Successful", response);
-        setFileUploadError(false);
-        // Cập nhật URL ảnh tải lên (ví dụ: dùng URL ảnh vào profile)
-        setFile(null); // Sau khi upload xong có thể reset file
-      })
-      .catch((err) => {
-        console.log("Upload Failed", err);
+      (error) => {
         setFileUploadError(true);
-      });
+      },
+      () => {
+        getDownloadURL(uploadTask.snapshot.ref).then((downloadURL) =>
+          setFormData({ ...formData, avatar: downloadURL })
+        );
+      }
+    );
   };
 
-  return (
-    <div className="p-3 max-w-lg mx-auto">
-      <h1 className="text-3xl font-semibold text-center my-7">Profile</h1>
+  const handleChange = (e) => {
+    setFormData({ ...formData, [e.target.id]: e.target.value });
+  };
 
-      <form className="flex flex-col gap-4">
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    try {
+      dispatch(updateUserStart());
+      const res = await fetch(`/api/user/update/${currentUser._id}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(formData),
+      });
+      const data = await res.json();
+      if (data.success === false) {
+        dispatch(updateUserFailure(data.message));
+        return;
+      }
+
+      dispatch(updateUserSuccess(data));
+      setUpdateSuccess(true);
+    } catch (error) {
+      dispatch(updateUserFailure(error.message));
+    }
+  };
+
+  const handleDeleteUser = async () => {
+    try {
+      dispatch(deleteUserStart());
+      const res = await fetch(`/api/user/delete/${currentUser._id}`, {
+        method: 'DELETE',
+      });
+      const data = await res.json();
+      if (data.success === false) {
+        dispatch(deleteUserFailure(data.message));
+        return;
+      }
+      dispatch(deleteUserSuccess(data));
+    } catch (error) {
+      dispatch(deleteUserFailure(error.message));
+    }
+  };
+  return (
+    <div className='p-3 max-w-lg mx-auto'>
+      <h1 className='text-3xl font-semibold text-center my-7'>Profile</h1>
+      <form onSubmit={handleSubmit} className='flex flex-col gap-4'>
         <input
-          type="file"
+          onChange={(e) => setFile(e.target.files[0])}
+          type='file'
           ref={fileRef}
           hidden
           accept='image/*'
-          onChange={handleFileChange} // Thêm onChange để theo dõi file
         />
-        
-        {/* Hiển thị ảnh đại diện và cho phép người dùng thay đổi */}
         <img
           onClick={() => fileRef.current.click()}
-          src={file ? URL.createObjectURL(file) : currentUser.avatar}
-          alt="profile"
-          className="rounded-full h-24 w-24 object-cover cursor-pointer self-center mt-2"
+          src={formData.avatar || currentUser.avatar}
+          alt='profile'
+          className='rounded-full h-24 w-24 object-cover cursor-pointer self-center mt-2'
         />
-
-        {/* Các trường khác */}
+        <p className='text-sm self-center'>
+          {fileUploadError ? (
+            <span className='text-red-700'>
+              Error Image upload (image must be less than 2 mb)
+            </span>
+          ) : filePerc > 0 && filePerc < 100 ? (
+            <span className='text-slate-700'>{`Uploading ${filePerc}%`}</span>
+          ) : filePerc === 100 ? (
+            <span className='text-green-700'>Image successfully uploaded!</span>
+          ) : (
+            ''
+          )}
+        </p>
         <input
-          type="text"
-          placeholder="username"
-          className="border p-3 rounded-lg"
+          type='text'
+          placeholder='username'
+          defaultValue={currentUser.username}
+          id='username'
+          className='border p-3 rounded-lg'
+          onChange={handleChange}
         />
         <input
-          type="email"
-          placeholder="email"
-          className="border p-3 rounded-lg"
+          type='email'
+          placeholder='email'
+          id='email'
+          defaultValue={currentUser.email}
+          className='border p-3 rounded-lg'
+          onChange={handleChange}
         />
         <input
-          type="password"
-          placeholder="password"
-          className="border p-3 rounded-lg"
+          type='password'
+          placeholder='password'
+          onChange={handleChange}
+          id='password'
+          className='border p-3 rounded-lg'
         />
-
         <button
-          type="button"
-          onClick={handleFileUpload} // Gọi hàm upload khi bấm nút Update
-          className="bg-slate-700 text-white rounded-lg p-3 uppercase hover:opacity-95 disabled:opacity-80"
+          disabled={loading}
+          className='bg-slate-700 text-white rounded-lg p-3 uppercase hover:opacity-95 disabled:opacity-80'
         >
-          Update
+          {loading ? 'Loading...' : 'Update'}
         </button>
       </form>
-
-      {/* Hiển thị trạng thái tiến trình tải lên */}
-      {filePerc > 0 && filePerc < 100 && (
-        <div>Uploading: {filePerc}%</div>
-      )}
-      {filePerc === 100 && <div>Upload Complete!</div>}
-      {fileUploadError && <div className="text-red-700">Error uploading image. Please try again.</div>}
-
-      {/* Các tùy chọn khác */}
-      <div className="flex justify-between mt-5">
-        <span className="text-red-700 cursor-pointer">Delete account</span>
-        <span className="text-red-700 cursor-pointer">Sign out</span>
+      <div className='flex justify-between mt-5'>
+        <span
+          onClick={handleDeleteUser}
+          className='text-red-700 cursor-pointer'
+        >
+          Delete account
+        </span>
+        <span className='text-red-700 cursor-pointer'>Sign out</span>
       </div>
+
+      <p className='text-red-700 mt-5'>{error ? error : ''}</p>
+      <p className='text-green-700 mt-5'>
+        {updateSuccess ? 'User is updated successfully!' : ''}
+      </p>
     </div>
   );
 }
