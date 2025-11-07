@@ -39,3 +39,47 @@ export const signin = async (req, res, next) => {
   }
 };
 
+export const google = async (req, res, next) => {
+  try {
+    const { email, name, photo } = req.body;
+    if (!email) return next(handleError(400, 'Email is required'));
+
+    // Đã có user -> đăng nhập
+    let user = await User.findOne({ email });
+    if (user) {
+      const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET);
+      const { password, ...safe } = user.toObject();
+      return res
+        .cookie('access_token', token, { httpOnly: true, sameSite: 'lax' })
+        .status(200)
+        .json(safe);
+    }
+
+    // Chưa có -> tạo mới (username & password bắt buộc theo schema)
+    const base =
+      (name || email.split('@')[0])
+        .toLowerCase()
+        .replace(/[^a-z0-9_]/g, '')
+        .slice(0, 20) || 'user';
+    const username = `${base}_${Math.random().toString(36).slice(2, 7)}`;
+
+    const randomPass = Math.random().toString(36).slice(2) + Date.now();
+    const hashedPassword = bcrypt.hashSync(randomPass, 10);
+
+    user = await User.create({
+      username,                 // ✅ đúng field
+      email,
+      password: hashedPassword, // vì schema required
+      avatar: photo             // ✅ đúng field trong schema
+    });
+
+    const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET);
+    const { password, ...safe } = user.toObject();
+    return res
+      .cookie('access_token', token, { httpOnly: true, sameSite: 'lax' })
+      .status(200)
+      .json(safe);
+  } catch (error) {
+    next(error);
+  }
+};
