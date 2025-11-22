@@ -1,22 +1,42 @@
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import ListingItem from '../components/ListingItem';
 
 export default function Search() {
   const navigate = useNavigate();
+  const location = useLocation();
+
   const [sidebardata, setSidebardata] = useState({
     searchTerm: '',
     type: 'all',
     parking: false,
     furnished: false,
     offer: false,
-    sort: 'created_at',
+    sort: 'createdAt',
     order: 'desc',
   });
 
   const [loading, setLoading] = useState(false);
   const [listings, setListings] = useState([]);
   const [showMore, setShowMore] = useState(false);
+
+  // dữ liệu crawl
+  const [crawledListings, setCrawledListings] = useState([]);
+  const [crawledShowMore, setCrawledShowMore] = useState(false);
+
+  const CRAWLED_PAGE_SIZE = 20;
+  const CRAWLED_MAX_TOTAL = 100;
+
+  // map dữ liệu crawl về format mà ListingItem hiểu được
+  const normalizeCrawled = (doc) => ({
+    ...doc,
+    source: 'alonhadat', // đánh dấu là tin crawl
+    name: doc.title, // ListingItem đang dùng listing.name
+    imageUrls: doc.image ? [doc.image] : [], // hiện tại image = null thì sẽ dùng fallback trong ListingItem
+    address: doc.address,
+    // KHÔNG set regularPrice ở đây để tránh bị hiển thị $0
+    // giá sẽ dùng doc.price_text / price_value trong ListingItem
+  });
 
   useEffect(() => {
     const urlParams = new URLSearchParams(location.search);
@@ -40,10 +60,10 @@ export default function Search() {
       setSidebardata({
         searchTerm: searchTermFromUrl || '',
         type: typeFromUrl || 'all',
-        parking: parkingFromUrl === 'true' ? true : false,
-        furnished: furnishedFromUrl === 'true' ? true : false,
-        offer: offerFromUrl === 'true' ? true : false,
-        sort: sortFromUrl || 'created_at',
+        parking: parkingFromUrl === 'true',
+        furnished: furnishedFromUrl === 'true',
+        offer: offerFromUrl === 'true',
+        sort: sortFromUrl || 'createdAt',
         order: orderFromUrl || 'desc',
       });
     }
@@ -51,7 +71,7 @@ export default function Search() {
     const fetchListings = async () => {
       setLoading(true);
       setShowMore(false);
-      const searchQuery = urlParams.toString();
+      const searchQuery = urlParams.toString(); // có cả sort & order
       const res = await fetch(`/api/listing/get?${searchQuery}`);
       const data = await res.json();
       if (data.length > 8) {
@@ -63,7 +83,30 @@ export default function Search() {
       setLoading(false);
     };
 
+    const fetchCrawledListings = async () => {
+      try {
+        // trang đầu tiên của crawl: startIndex = 0, page size = 20
+        const crawlParams = new URLSearchParams(urlParams.toString());
+        crawlParams.set('startIndex', 0);
+
+        const res = await fetch(`/api/listing/crawl?${crawlParams.toString()}`);
+        const data = await res.json();
+
+        setCrawledListings(data.map(normalizeCrawled));
+
+        // nếu đủ 20 tin và tổng < 100 thì còn trang tiếp
+        if (data.length === CRAWLED_PAGE_SIZE && data.length < CRAWLED_MAX_TOTAL) {
+          setCrawledShowMore(true);
+        } else {
+          setCrawledShowMore(false);
+        }
+      } catch (err) {
+        console.error('Error fetching crawled listings:', err);
+      }
+    };
+
     fetchListings();
+    fetchCrawledListings();
   }, [location.search]);
 
   const handleChange = (e) => {
@@ -86,16 +129,13 @@ export default function Search() {
     ) {
       setSidebardata({
         ...sidebardata,
-        [e.target.id]:
-          e.target.checked || e.target.checked === 'true' ? true : false,
+        [e.target.id]: e.target.checked ? true : false,
       });
     }
 
     if (e.target.id === 'sort_order') {
-      const sort = e.target.value.split('_')[0] || 'created_at';
-
+      const sort = e.target.value.split('_')[0] || 'createdAt';
       const order = e.target.value.split('_')[1] || 'desc';
-
       setSidebardata({ ...sidebardata, sort, order });
     }
   };
@@ -127,8 +167,35 @@ export default function Search() {
     }
     setListings([...listings, ...data]);
   };
+
+  // phân trang tin crawl: 20 tin / lần, tối đa 100 tin
+  const onShowMoreCrawledClick = async () => {
+    const currentCount = crawledListings.length;
+
+    // nếu đã đủ 100 tin thì thôi
+    if (currentCount >= CRAWLED_MAX_TOTAL) {
+      setCrawledShowMore(false);
+      return;
+    }
+
+    const urlParams = new URLSearchParams(location.search);
+    urlParams.set('startIndex', currentCount);
+
+    const res = await fetch(`/api/listing/crawl?${urlParams.toString()}`);
+    const data = await res.json();
+
+    const newList = [...crawledListings, ...data.map(normalizeCrawled)];
+    setCrawledListings(newList);
+
+    // nếu số tin trả về < 20 hoặc đã >= 100 thì tắt nút Show more
+    if (data.length < CRAWLED_PAGE_SIZE || newList.length >= CRAWLED_MAX_TOTAL) {
+      setCrawledShowMore(false);
+    }
+  };
+
   return (
     <div className='flex flex-col md:flex-row'>
+      {/* SIDEBAR */}
       <div className='p-7  border-b-2 md:border-r-2 md:min-h-screen'>
         <form onSubmit={handleSubmit} className='flex flex-col gap-8'>
           <div className='flex items-center gap-2'>
@@ -144,6 +211,7 @@ export default function Search() {
               onChange={handleChange}
             />
           </div>
+
           <div className='flex gap-2 flex-wrap items-center'>
             <label className='font-semibold'>Type:</label>
             <div className='flex gap-2'>
@@ -187,6 +255,7 @@ export default function Search() {
               <span>Offer</span>
             </div>
           </div>
+
           <div className='flex gap-2 flex-wrap items-center'>
             <label className='font-semibold'>Amenities:</label>
             <div className='flex gap-2'>
@@ -210,11 +279,12 @@ export default function Search() {
               <span>Furnished</span>
             </div>
           </div>
+
           <div className='flex items-center gap-2'>
             <label className='font-semibold'>Sort:</label>
             <select
               onChange={handleChange}
-              defaultValue={'created_at_desc'}
+              defaultValue={'createdAt_desc'}
               id='sort_order'
               className='border rounded-lg p-3'
             >
@@ -224,15 +294,19 @@ export default function Search() {
               <option value='createdAt_asc'>Oldest</option>
             </select>
           </div>
+
           <button className='bg-slate-700 text-white p-3 rounded-lg uppercase hover:opacity-95'>
             Search
           </button>
         </form>
       </div>
+
+      {/* KẾT QUẢ */}
       <div className='flex-1'>
         <h1 className='text-3xl font-semibold border-b p-3 text-slate-700 mt-5'>
           Listing results:
         </h1>
+
         <div className='p-7 flex flex-wrap gap-4'>
           {!loading && listings.length === 0 && (
             <p className='text-xl text-slate-700'>No listing found!</p>
@@ -258,6 +332,29 @@ export default function Search() {
             </button>
           )}
         </div>
+
+        {/* Crawled listings */}
+        {crawledListings.length > 0 && (
+          <>
+            <h1 className='text-3xl font-semibold border-b p-3 text-slate-700 mt-5'>
+              Crawled listings (Đà Nẵng):
+            </h1>
+            <div className='p-7 flex flex-wrap gap-4'>
+              {crawledListings.map((listing) => (
+                <ListingItem key={listing._id} listing={listing} />
+              ))}
+            </div>
+
+            {crawledShowMore && (
+              <button
+                onClick={onShowMoreCrawledClick}
+                className='text-green-700 hover:underline p-7 text-center w-full'
+              >
+                Show more crawled listings
+              </button>
+            )}
+          </>
+        )}
       </div>
     </div>
   );

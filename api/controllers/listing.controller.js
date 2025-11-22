@@ -1,5 +1,9 @@
+// controllers/listing.controller.js
+import mongoose from 'mongoose';
 import Listing from '../models/listing.model.js';
 import { errorHandler } from '../utils/error.js';
+
+// =============== LISTING USER TỰ ĐĂNG (GIỮ NGUYÊN) ===============
 
 export const createListing = async (req, res, next) => {
   try {
@@ -73,27 +77,22 @@ export const getListings = async (req, res, next) => {
     }
 
     let furnished = req.query.furnished;
-
     if (furnished === undefined || furnished === 'false') {
       furnished = { $in: [false, true] };
     }
 
     let parking = req.query.parking;
-
     if (parking === undefined || parking === 'false') {
       parking = { $in: [false, true] };
     }
 
     let type = req.query.type;
-
     if (type === undefined || type === 'all') {
       type = { $in: ['sale', 'rent'] };
     }
 
     const searchTerm = req.query.searchTerm || '';
-
     const sort = req.query.sort || 'createdAt';
-
     const order = req.query.order || 'desc';
 
     const listings = await Listing.find({
@@ -108,6 +107,121 @@ export const getListings = async (req, res, next) => {
       .skip(startIndex);
 
     return res.status(200).json(listings);
+  } catch (error) {
+    next(error);
+  }
+};
+
+// =============== PHẦN MỚI: ĐỌC DỮ LIỆU CRAWL TỪ MongoDB ===============
+
+// Phân trang: tối đa 100 tin, mỗi trang 20 tin
+// GET /api/listing/crawl?startIndex=0&searchTerm=&sort=regularPrice|createdAt&order=asc|desc
+export const getCrawledListings = async (req, res, next) => {
+  try {
+    const PAGE_SIZE = 20;   // 20 tin / 1 request
+    const MAX_TOTAL = 100;  // tổng tối đa 100 tin
+
+    const startIndex = parseInt(req.query.startIndex) || 0;
+    const requestedLimit = parseInt(req.query.limit) || PAGE_SIZE;
+    let limit = Math.min(requestedLimit, PAGE_SIZE);
+
+    const searchTerm = req.query.searchTerm || '';
+
+    // sort/order từ frontend
+    const sortParam = req.query.sort || 'createdAt';
+    const orderParam = req.query.order || 'desc';
+
+    // collection crawl
+    const collectionName = 'alonhadat_da_nang';
+    const col = mongoose.connection.db.collection(collectionName);
+
+    const filter = {};
+    if (searchTerm) {
+      filter.$or = [
+        { title: { $regex: searchTerm, $options: 'i' } },
+        { address: { $regex: searchTerm, $options: 'i' } },
+      ];
+    }
+
+    // Lấy tối đa 100 tin, chưa sort/skip (để tự chuẩn hoá & sort)
+    const rawDocs = await col.find(filter).limit(MAX_TOTAL).toArray();
+
+    // Chuẩn hoá giá & gắn key sort
+    const docsWithKey = rawDocs.map((doc) => {
+      let sortKey = 0;
+
+      if (sortParam === 'regularPrice') {
+        // mặc định lấy price_value
+        let price = typeof doc.price_value === 'number' ? doc.price_value : 0;
+        const text = (doc.price_text || '').toLowerCase();
+
+        // nếu là giá theo m2 (vd: "68 triệu /m2", "68 triệu / m²")
+        const isPerM2 =
+          text.includes('/m2') ||
+          text.includes('/m²') ||
+          (text.includes('/m') && text.includes('triệu'));
+
+        if (isPerM2) {
+          const area =
+            typeof doc.area_m2 === 'number' && doc.area_m2 > 0
+              ? doc.area_m2
+              : null;
+          if (area) {
+            // chuẩn hoá: tổng giá = đơn giá * diện tích
+            price = price * area;
+          }
+        }
+
+        sortKey = price;
+      } else {
+        // sort theo thời gian crawl
+        const t = doc.crawled_at ? new Date(doc.crawled_at).getTime() : 0;
+        sortKey = t;
+      }
+
+      return { ...doc, _sortKey: sortKey };
+    });
+
+    // Sort theo _sortKey
+    docsWithKey.sort((a, b) => {
+      if (orderParam === 'asc') return a._sortKey - b._sortKey;
+      return b._sortKey - a._sortKey;
+    });
+
+    // Phân trang trên mảng đã chuẩn hoá
+    const total = Math.min(docsWithKey.length, MAX_TOTAL);
+    if (startIndex >= total) {
+      return res.status(200).json([]);
+    }
+
+    const end = Math.min(startIndex + limit, total);
+    const paged = docsWithKey.slice(startIndex, end);
+
+    // bỏ _sortKey trước khi trả về
+    const result = paged.map(({ _sortKey, ...rest }) => rest);
+
+    res.status(200).json(result);
+  } catch (error) {
+    next(error);
+  }
+};
+
+// GET /api/listing/crawl/:id  (id là _id của document crawl)
+export const getCrawledListingById = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+
+    const collectionName = 'alonhadat_da_nang';
+    const col = mongoose.connection.db.collection(collectionName);
+    const { ObjectId } = mongoose.Types;
+
+    const doc = await col.findOne({ _id: new ObjectId(id) });
+
+    if (!doc) {
+      return next(errorHandler(404, 'Crawled listing not found!'));
+    }
+
+    res.status(200).json(doc);
   } catch (error) {
     next(error);
   }

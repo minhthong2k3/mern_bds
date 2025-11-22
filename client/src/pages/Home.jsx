@@ -10,12 +10,23 @@ export default function Home() {
   const [offerListings, setOfferListings] = useState([]);
   const [saleListings, setSaleListings] = useState([]);
   const [rentListings, setRentListings] = useState([]);
+  const [crawledListings, setCrawledListings] = useState([]); // ✅ tin crawl
+
   SwiperCore.use([Navigation]);
-  console.log(offerListings);
+
+  // chuẩn hoá tin crawl cho ListingItem
+  const normalizeCrawled = (doc) => ({
+    ...doc,
+    source: 'alonhadat',
+    name: doc.title,
+    imageUrls: doc.image ? [doc.image] : [],
+    address: doc.address,
+  });
+
   useEffect(() => {
     const fetchOfferListings = async () => {
       try {
-        const res = await fetch('/api/listing/get?offer=true&limit=4');
+        const res = await fetch('/api/listing/get?offer=true&limit=6');
         const data = await res.json();
         setOfferListings(data);
         fetchRentListings();
@@ -23,9 +34,10 @@ export default function Home() {
         console.log(error);
       }
     };
+
     const fetchRentListings = async () => {
       try {
-        const res = await fetch('/api/listing/get?type=rent&limit=4');
+        const res = await fetch('/api/listing/get?type=rent&limit=6');
         const data = await res.json();
         setRentListings(data);
         fetchSaleListings();
@@ -36,15 +48,29 @@ export default function Home() {
 
     const fetchSaleListings = async () => {
       try {
-        const res = await fetch('/api/listing/get?type=sale&limit=4');
+        const res = await fetch('/api/listing/get?type=sale&limit=6');
         const data = await res.json();
         setSaleListings(data);
+        fetchCrawledListings(); // ✅ sau khi load xong sale thì load crawl
       } catch (error) {
-        log(error);
+        console.log(error);
       }
     };
+
+    const fetchCrawledListings = async () => {
+      try {
+        // lấy 4 tin crawl mới nhất (backend đã sort theo crawled_at)
+        const res = await fetch('/api/listing/crawl?limit=6');
+        const data = await res.json();
+        setCrawledListings(data.map(normalizeCrawled));
+      } catch (error) {
+        console.log(error);
+      }
+    };
+
     fetchOfferListings();
   }, []);
+
   return (
     <div>
       {/* top */}
@@ -68,32 +94,39 @@ export default function Home() {
         </Link>
       </div>
 
-      {/* swiper */}
+      {/* swiper – dùng offerListings */}
       <Swiper navigation>
         {offerListings &&
           offerListings.length > 0 &&
           offerListings.map((listing) => (
-            <SwiperSlide>
+            <SwiperSlide key={listing._id}>
               <div
                 style={{
-                  background: `url(${listing.imageUrls[0]}) center no-repeat`,
+                  background: `url(${
+                    listing.imageUrls && listing.imageUrls[0]
+                  }) center no-repeat`,
                   backgroundSize: 'cover',
                 }}
                 className='h-[500px]'
-                key={listing._id}
               ></div>
             </SwiperSlide>
           ))}
       </Swiper>
 
       {/* listing results for offer, sale and rent */}
-
       <div className='max-w-6xl mx-auto p-3 flex flex-col gap-8 my-10'>
         {offerListings && offerListings.length > 0 && (
-          <div className=''>
+          <div>
             <div className='my-3'>
-              <h2 className='text-2xl font-semibold text-slate-600'>Recent offers</h2>
-              <Link className='text-sm text-blue-800 hover:underline' to={'/search?offer=true'}>Show more offers</Link>
+              <h2 className='text-2xl font-semibold text-slate-600'>
+                Recent offers
+              </h2>
+              <Link
+                className='text-sm text-blue-800 hover:underline'
+                to={'/search?offer=true'}
+              >
+                Show more offers
+              </Link>
             </div>
             <div className='flex flex-wrap gap-4'>
               {offerListings.map((listing) => (
@@ -102,11 +135,19 @@ export default function Home() {
             </div>
           </div>
         )}
+
         {rentListings && rentListings.length > 0 && (
-          <div className=''>
+          <div>
             <div className='my-3'>
-              <h2 className='text-2xl font-semibold text-slate-600'>Recent places for rent</h2>
-              <Link className='text-sm text-blue-800 hover:underline' to={'/search?type=rent'}>Show more places for rent</Link>
+              <h2 className='text-2xl font-semibold text-slate-600'>
+                Recent places for rent
+              </h2>
+              <Link
+                className='text-sm text-blue-800 hover:underline'
+                to={'/search?type=rent'}
+              >
+                Show more places for rent
+              </Link>
             </div>
             <div className='flex flex-wrap gap-4'>
               {rentListings.map((listing) => (
@@ -115,14 +156,45 @@ export default function Home() {
             </div>
           </div>
         )}
+
         {saleListings && saleListings.length > 0 && (
-          <div className=''>
+          <div>
             <div className='my-3'>
-              <h2 className='text-2xl font-semibold text-slate-600'>Recent places for sale</h2>
-              <Link className='text-sm text-blue-800 hover:underline' to={'/search?type=sale'}>Show more places for sale</Link>
+              <h2 className='text-2xl font-semibold text-slate-600'>
+                Recent places for sale
+              </h2>
+              <Link
+                className='text-sm text-blue-800 hover:underline'
+                to={'/search?type=sale'}
+              >
+                Show more places for sale
+              </Link>
             </div>
             <div className='flex flex-wrap gap-4'>
               {saleListings.map((listing) => (
+                <ListingItem listing={listing} key={listing._id} />
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* ✅ block tin crawl trên homepage */}
+        {crawledListings && crawledListings.length > 0 && (
+          <div>
+            <div className='my-3'>
+              <h2 className='text-2xl font-semibold text-slate-600'>
+                Crawled listings (Đà Nẵng)
+              </h2>
+              {/* Search page đã có block crawl nên chỉ cần link tới /search */}
+              <Link
+                className='text-sm text-blue-800 hover:underline'
+                to={'/search'}
+              >
+                Show more crawled listings
+              </Link>
+            </div>
+            <div className='flex flex-wrap gap-4'>
+              {crawledListings.map((listing) => (
                 <ListingItem listing={listing} key={listing._id} />
               ))}
             </div>
