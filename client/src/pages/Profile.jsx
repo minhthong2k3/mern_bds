@@ -455,15 +455,25 @@ export default function Profile() {
                 )}
               </div>
               <div className='flex flex-col items-end gap-1 text-xs font-semibold'>
+                {/* Chỉ user thường mới có Delete + Edit, admin khác thì không */}
                 {!user.isAdmin && (
-                  <button
-                    onClick={() => handleAdminDeleteUser(user._id)}
-                    className='text-red-700 uppercase'
-                  >
-                    Delete
-                  </button>
+                  <>
+                    <button
+                      onClick={() => handleAdminDeleteUser(user._id)}
+                      className='text-red-700 uppercase'
+                    >
+                      Delete
+                    </button>
+
+                    <Link to={`/admin/users/${user._id}`}>
+                      <button className='text-green-700 uppercase'>
+                        Edit
+                      </button>
+                    </Link>
+                  </>
                 )}
               </div>
+
             </div>
           ))}
         </div>

@@ -10,6 +10,7 @@ import CreateListing from './pages/CreateListing';
 import UpdateListing from './pages/UpdateListing';
 import Listing from './pages/Listing';
 import Search from './pages/Search';
+import AdminEditUser from './pages/AdminEditUser';
 
 // 👇 import thêm page mới
 import EditCrawledListing from './pages/EditCrawledListing';
@@ -18,7 +19,6 @@ export default function App() {
   return (
     <BrowserRouter>
       <Header />
-      {/* THÊM main bọc Routes như dưới */}
       <main className="max-w-6xl mx-auto">
         <Routes>
           <Route path='/' element={<Home />} />
@@ -42,10 +42,16 @@ export default function App() {
               element={<UpdateListing />}
             />
 
-            {/* 👇 route mới: admin edit tin crawl */}
+            {/* admin edit tin crawl */}
             <Route
               path='/admin/crawl-edit/:crawlId'
               element={<EditCrawledListing />}
+            />
+
+            {/* ✅ admin edit user */}
+            <Route
+              path='/admin/users/:userId'
+              element={<AdminEditUser />}
             />
           </Route>
         </Routes>

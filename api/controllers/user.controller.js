@@ -1,3 +1,4 @@
+// controllers/user.controller.js
 import bcryptjs from 'bcryptjs';
 import User from '../models/user.model.js';
 import { errorHandler } from '../utils/error.js';
@@ -9,9 +10,16 @@ export const test = (req, res) => {
   });
 };
 
+//
+// ================== USER TỰ QUẢN LÝ TÀI KHOẢN ==================
+//
+
+// USER tự update chính mình
 export const updateUser = async (req, res, next) => {
-  if (req.user.id !== req.params.id)
+  if (req.user.id !== req.params.id) {
     return next(errorHandler(401, 'You can only update your own account!'));
+  }
+
   try {
     if (req.body.password) {
       req.body.password = bcryptjs.hashSync(req.body.password, 10);
@@ -31,16 +39,17 @@ export const updateUser = async (req, res, next) => {
     );
 
     const { password, ...rest } = updatedUser._doc;
-
     res.status(200).json(rest);
   } catch (error) {
     next(error);
   }
 };
 
+// USER tự xoá chính mình
 export const deleteUser = async (req, res, next) => {
-  if (req.user.id !== req.params.id)
+  if (req.user.id !== req.params.id) {
     return next(errorHandler(401, 'You can only delete your own account!'));
+  }
   try {
     await User.findByIdAndDelete(req.params.id);
     res.clearCookie('access_token');
@@ -50,6 +59,7 @@ export const deleteUser = async (req, res, next) => {
   }
 };
 
+// Lấy listing của 1 user (chỉ chủ tài khoản)
 export const getUserListings = async (req, res, next) => {
   if (req.user.id === req.params.id) {
     try {
@@ -63,17 +73,105 @@ export const getUserListings = async (req, res, next) => {
   }
 };
 
+// Lấy thông tin 1 user (chủ tài khoản hoặc admin)
 export const getUser = async (req, res, next) => {
   try {
-    
+    // chỉ cho chính chủ hoặc admin xem
+    if (!req.user?.isAdmin && req.user.id !== req.params.id) {
+      return next(errorHandler(401, 'You can only view your own account!'));
+    }
+
     const user = await User.findById(req.params.id);
-  
     if (!user) return next(errorHandler(404, 'User not found!'));
-  
+
     const { password: pass, ...rest } = user._doc;
-  
     res.status(200).json(rest);
   } catch (error) {
     next(error);
+  }
+};
+
+//
+// ================== ADMIN QUẢN LÝ USER KHÁC ==================
+//
+
+// Lấy toàn bộ danh sách user (ẩn password)
+export const adminGetAllUsers = async (req, res, next) => {
+  try {
+    if (!req.user?.isAdmin) {
+      return next(errorHandler(403, 'Admin only!'));
+    }
+
+    const users = await User.find({}, '-password').sort({ createdAt: -1 });
+    res.status(200).json(users);
+  } catch (err) {
+    next(err);
+  }
+};
+
+// Admin xoá user khác (không xoá chính mình)
+export const adminDeleteUser = async (req, res, next) => {
+  try {
+    if (!req.user?.isAdmin) {
+      return next(errorHandler(403, 'Admin only!'));
+    }
+
+    const user = await User.findById(req.params.id);
+    if (!user) return next(errorHandler(404, 'User not found!'));
+
+    // không cho xoá tài khoản admin đang đăng nhập
+    if (user._id.toString() === req.user.id) {
+      return next(errorHandler(400, 'Cannot delete main admin account!'));
+    }
+
+    await User.findByIdAndDelete(req.params.id);
+    res.status(200).json('User has been deleted by admin!');
+  } catch (err) {
+    next(err);
+  }
+};
+
+// Admin update user khác
+export const adminUpdateUser = async (req, res, next) => {
+  try {
+    if (!req.user?.isAdmin) {
+      return next(errorHandler(403, 'Admin only!'));
+    }
+
+    const user = await User.findById(req.params.id);
+    if (!user) return next(errorHandler(404, 'User not found!'));
+
+    // chính admin muốn sửa mình thì dùng /user/update/:id
+    if (user._id.toString() === req.user.id) {
+      return next(
+        errorHandler(400, 'Use profile page to update main admin account!')
+      );
+    }
+
+    const updateFields = {};
+
+    if (req.body.username !== undefined)
+      updateFields.username = req.body.username;
+    if (req.body.email !== undefined) updateFields.email = req.body.email;
+    if (req.body.avatar !== undefined) updateFields.avatar = req.body.avatar;
+
+    if (req.body.password) {
+      updateFields.password = bcryptjs.hashSync(req.body.password, 10);
+    }
+
+    // tuỳ ý: cho phép set isAdmin cho user khác
+    if (typeof req.body.isAdmin === 'boolean') {
+      updateFields.isAdmin = req.body.isAdmin;
+    }
+
+    const updatedUser = await User.findByIdAndUpdate(
+      req.params.id,
+      { $set: updateFields },
+      { new: true }
+    ).select('-password');
+
+    res.status(200).json(updatedUser);
+  } catch (err) {
+    next(err);
   }
 };
