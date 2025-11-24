@@ -7,6 +7,9 @@ import {
   getListings,
   getCrawledListings,
   getCrawledListingById,
+  updateCrawledListing,    // ✅ update crawl
+  deleteCrawledListing,    // ✅ delete crawl
+  getAdminAllListings,     // ✅ admin tổng hợp
 } from '../controllers/listing.controller.js';
 import { verifyToken } from '../utils/verifyUser.js';
 
@@ -22,5 +25,10 @@ router.get('/get', getListings);
 // dữ liệu crawl
 router.get('/crawl', getCrawledListings);
 router.get('/crawl/:id', getCrawledListingById);
+router.put('/crawl/:id', verifyToken, updateCrawledListing);   // ✅
+router.delete('/crawl/:id', verifyToken, deleteCrawledListing); // ✅
+
+// admin tổng hợp
+router.get('/admin/all', verifyToken, getAdminAllListings);
 
 export default router;

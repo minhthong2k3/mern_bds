@@ -3,7 +3,7 @@ import mongoose from 'mongoose';
 import Listing from '../models/listing.model.js';
 import { errorHandler } from '../utils/error.js';
 
-// =============== LISTING USER TỰ ĐĂNG (GIỮ NGUYÊN) ===============
+// =============== LISTING USER TỰ ĐĂNG ===============
 
 export const createListing = async (req, res, next) => {
   try {
@@ -21,7 +21,8 @@ export const deleteListing = async (req, res, next) => {
     return next(errorHandler(404, 'Listing not found!'));
   }
 
-  if (req.user.id !== listing.userRef) {
+  // ✅ ADMIN hoặc CHÍNH CHỦ mới được xoá
+  if (!req.user.isAdmin && req.user.id !== listing.userRef) {
     return next(errorHandler(401, 'You can only delete your own listings!'));
   }
 
@@ -38,7 +39,9 @@ export const updateListing = async (req, res, next) => {
   if (!listing) {
     return next(errorHandler(404, 'Listing not found!'));
   }
-  if (req.user.id !== listing.userRef) {
+
+  // ✅ ADMIN hoặc CHÍNH CHỦ mới được sửa
+  if (!req.user.isAdmin && req.user.id !== listing.userRef) {
     return next(errorHandler(401, 'You can only update your own listings!'));
   }
 
@@ -112,14 +115,14 @@ export const getListings = async (req, res, next) => {
   }
 };
 
-// =============== PHẦN MỚI: ĐỌC DỮ LIỆU CRAWL TỪ MongoDB ===============
+// =============== ĐỌC DỮ LIỆU CRAWL TỪ MongoDB ===============
 
 // Phân trang: tối đa 100 tin, mỗi trang 20 tin
 // GET /api/listing/crawl?startIndex=0&searchTerm=&sort=regularPrice|createdAt&order=asc|desc
 export const getCrawledListings = async (req, res, next) => {
   try {
-    const PAGE_SIZE = 20;   // 20 tin / 1 request
-    const MAX_TOTAL = 100;  // tổng tối đa 100 tin
+    const PAGE_SIZE = 20; // 20 tin / 1 request
+    const MAX_TOTAL = 100; // tổng tối đa 100 tin
 
     const startIndex = parseInt(req.query.startIndex) || 0;
     const requestedLimit = parseInt(req.query.limit) || PAGE_SIZE;
@@ -206,7 +209,7 @@ export const getCrawledListings = async (req, res, next) => {
   }
 };
 
-// GET /api/listing/crawl/:id  (id là _id của document crawl)
+// GET /api/listing/crawl/:id
 export const getCrawledListingById = async (req, res, next) => {
   try {
     const { id } = req.params;
@@ -222,6 +225,114 @@ export const getCrawledListingById = async (req, res, next) => {
     }
 
     res.status(200).json(doc);
+  } catch (error) {
+    next(error);
+  }
+};
+
+// ================= ADMIN: UPDATE / DELETE CRAWLED LISTING =================
+
+// PUT /api/listing/crawl/:id
+export const updateCrawledListing = async (req, res, next) => {
+  try {
+    if (!req.user?.isAdmin) {
+      return next(errorHandler(403, 'Admin only!'));
+    }
+
+    const { id } = req.params;
+    const { ObjectId } = mongoose.Types;
+    const collectionName = 'alonhadat_da_nang';
+    const col = mongoose.connection.db.collection(collectionName);
+
+    // những field cho phép sửa (có thể thêm/bớt tuỳ bạn)
+    const {
+      title,
+      brief,
+      address,
+      area_m2,
+      duong_truoc_nha,
+      phap_ly,
+      price_text,
+      price_value,
+    } = req.body;
+
+    const updateDoc = {
+      ...(title !== undefined && { title }),
+      ...(brief !== undefined && { brief }),
+      ...(address !== undefined && { address }),
+      ...(area_m2 !== undefined && { area_m2 }),
+      ...(duong_truoc_nha !== undefined && { duong_truoc_nha }),
+      ...(phap_ly !== undefined && { phap_ly }),
+      ...(price_text !== undefined && { price_text }),
+      ...(price_value !== undefined && { price_value }),
+      updated_at: new Date(),
+    };
+
+    const result = await col.findOneAndUpdate(
+      { _id: new ObjectId(id) },
+      { $set: updateDoc },
+      { returnDocument: 'after' }
+    );
+
+    if (!result.value) {
+      return next(errorHandler(404, 'Crawled listing not found!'));
+    }
+
+    res.status(200).json(result.value);
+  } catch (error) {
+    next(error);
+  }
+};
+
+// DELETE /api/listing/crawl/:id
+export const deleteCrawledListing = async (req, res, next) => {
+  try {
+    if (!req.user?.isAdmin) {
+      return next(errorHandler(403, 'Admin only!'));
+    }
+
+    const { id } = req.params;
+    const { ObjectId } = mongoose.Types;
+    const collectionName = 'alonhadat_da_nang';
+    const col = mongoose.connection.db.collection(collectionName);
+
+    const result = await col.deleteOne({ _id: new ObjectId(id) });
+
+    if (result.deletedCount === 0) {
+      return next(errorHandler(404, 'Crawled listing not found!'));
+    }
+
+    res.status(200).json('Crawled listing has been deleted!');
+  } catch (error) {
+    next(error);
+  }
+};
+
+// =============== ADMIN: LẤY LISTING USER + CRAWL ===============
+// GET /api/listing/admin/all
+export const getAdminAllListings = async (req, res, next) => {
+  try {
+    if (!req.user?.isAdmin) {
+      return next(errorHandler(403, 'Admin only!'));
+    }
+
+    const userListings = await Listing.find({})
+      .sort({ createdAt: -1 })
+      .limit(100);
+
+    const collectionName = 'alonhadat_da_nang';
+    const col = mongoose.connection.db.collection(collectionName);
+
+    const crawledListings = await col
+      .find({})
+      .sort({ crawled_at: -1 })
+      .limit(100)
+      .toArray();
+
+    res.status(200).json({
+      userListings,
+      crawledListings,
+    });
   } catch (error) {
     next(error);
   }

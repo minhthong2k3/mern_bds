@@ -11,6 +11,9 @@ import UpdateListing from './pages/UpdateListing';
 import Listing from './pages/Listing';
 import Search from './pages/Search';
 
+// 👇 import thêm page mới
+import EditCrawledListing from './pages/EditCrawledListing';
+
 export default function App() {
   return (
     <BrowserRouter>
@@ -23,14 +26,26 @@ export default function App() {
           <Route path='/sign-up' element={<SignUp />} />
           <Route path='/about' element={<About />} />
           <Route path='/search' element={<Search />} />
+
+          {/* xem chi tiết listing user */}
           <Route path='/listing/:listingId' element={<Listing />} />
-          <Route path="/crawl/:listingId" element={<Listing />} />
+
+          {/* xem chi tiết tin crawl (đang dùng chung component Listing) */}
+          <Route path='/crawl/:listingId' element={<Listing />} />
+
+          {/* các route cần đăng nhập */}
           <Route element={<PrivateRoute />}>
             <Route path='/profile' element={<Profile />} />
             <Route path='/create-listing' element={<CreateListing />} />
             <Route
               path='/update-listing/:listingId'
               element={<UpdateListing />}
+            />
+
+            {/* 👇 route mới: admin edit tin crawl */}
+            <Route
+              path='/admin/crawl-edit/:crawlId'
+              element={<EditCrawledListing />}
             />
           </Route>
         </Routes>
