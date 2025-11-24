@@ -9,6 +9,7 @@ import {
   adminGetAllUsers,
   adminDeleteUser,
   adminUpdateUser,
+  adminGetUserListings,
 } from '../controllers/user.controller.js';
 import { verifyToken } from '../utils/verifyUser.js';
 
@@ -28,5 +29,7 @@ router.delete('/admin/delete/:id', verifyToken, adminDeleteUser);
 
 // ===== XEM THÔNG TIN 1 USER (chủ tài khoản hoặc admin) =====
 router.get('/:id', verifyToken, getUser);
+// admin xem toàn bộ listings của 1 user
+router.get('/admin/:id/listings', verifyToken, adminGetUserListings);
 
 export default router;

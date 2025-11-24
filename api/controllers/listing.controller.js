@@ -35,27 +35,48 @@ export const deleteListing = async (req, res, next) => {
 };
 
 export const updateListing = async (req, res, next) => {
-  const listing = await Listing.findById(req.params.id);
-  if (!listing) {
-    return next(errorHandler(404, 'Listing not found!'));
-  }
-
-  // ✅ ADMIN hoặc CHÍNH CHỦ mới được sửa
-  if (!req.user.isAdmin && req.user.id !== listing.userRef) {
-    return next(errorHandler(401, 'You can only update your own listings!'));
-  }
-
   try {
+    const listing = await Listing.findById(req.params.id);
+    if (!listing) {
+      return next(errorHandler(404, 'Listing not found!'));
+    }
+
+    const isOwner = listing.userRef.toString() === req.user.id;
+
+    // ✅ Chỉ cho ADMIN hoặc CHÍNH CHỦ sửa
+    if (!req.user.isAdmin && !isOwner) {
+      return next(errorHandler(401, 'You can only update your own listings!'));
+    }
+
+    // copy dữ liệu update từ body ra
+    const updateData = { ...req.body };
+
+    // ===== PHÂN BIỆT USER / ADMIN ĐỐI VỚI userRef =====
+
+    if (!req.user.isAdmin) {
+      // 👉 USER thường: luôn ép userRef = chính user đang đăng nhập
+      // (kể cả có cố gửi userRef khác trong body cũng bị ghi đè)
+      updateData.userRef = req.user.id;
+    } else if (req.user.isAdmin && !isOwner) {
+      // 👉 ADMIN đang sửa tin của người khác: không cho đổi userRef
+      if ('userRef' in updateData) {
+        delete updateData.userRef;
+      }
+    }
+    // (Admin sửa tin của CHÍNH MÌNH thì cứ để nguyên, nhưng thực ra cũng không cần đổi userRef)
+
     const updatedListing = await Listing.findByIdAndUpdate(
       req.params.id,
-      req.body,
+      updateData,
       { new: true }
     );
+
     res.status(200).json(updatedListing);
   } catch (error) {
     next(error);
   }
 };
+
 
 export const getListing = async (req, res, next) => {
   try {

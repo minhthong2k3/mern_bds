@@ -45,15 +45,24 @@ export const updateUser = async (req, res, next) => {
   }
 };
 
-// USER tự xoá chính mình
+// USER tự xoá chính mình + xoá luôn tất cả listing của mình
 export const deleteUser = async (req, res, next) => {
   if (req.user.id !== req.params.id) {
     return next(errorHandler(401, 'You can only delete your own account!'));
   }
   try {
-    await User.findByIdAndDelete(req.params.id);
+    const userId = req.params.id;
+
+    // Xoá toàn bộ listing do user này tạo
+    await Listing.deleteMany({ userRef: userId });
+
+    // Xoá user
+    await User.findByIdAndDelete(userId);
+
     res.clearCookie('access_token');
-    res.status(200).json('User has been deleted!');
+    res
+      .status(200)
+      .json('User and all listings have been deleted!');
   } catch (error) {
     next(error);
   }
@@ -95,6 +104,22 @@ export const getUser = async (req, res, next) => {
 // ================== ADMIN QUẢN LÝ USER KHÁC ==================
 //
 
+// Lấy tất cả listing của một user (chỉ admin)
+export const adminGetUserListings = async (req, res, next) => {
+  try {
+    if (!req.user?.isAdmin) {
+      return next(errorHandler(403, 'Admin only!'));
+    }
+
+    const { id } = req.params; // id của user
+    const listings = await Listing.find({ userRef: id }).sort({ createdAt: -1 });
+
+    res.status(200).json(listings);
+  } catch (err) {
+    next(err);
+  }
+};
+
 // Lấy toàn bộ danh sách user (ẩn password)
 export const adminGetAllUsers = async (req, res, next) => {
   try {
@@ -109,7 +134,7 @@ export const adminGetAllUsers = async (req, res, next) => {
   }
 };
 
-// Admin xoá user khác (không xoá chính mình)
+// Admin xoá user khác (không xoá chính mình) + xoá luôn tất cả listing của user đó
 export const adminDeleteUser = async (req, res, next) => {
   try {
     if (!req.user?.isAdmin) {
@@ -124,8 +149,17 @@ export const adminDeleteUser = async (req, res, next) => {
       return next(errorHandler(400, 'Cannot delete main admin account!'));
     }
 
-    await User.findByIdAndDelete(req.params.id);
-    res.status(200).json('User has been deleted by admin!');
+    const userId = user._id.toString();
+
+    // Xoá toàn bộ listing do user này tạo
+    await Listing.deleteMany({ userRef: userId });
+
+    // Xoá user
+    await User.findByIdAndDelete(userId);
+
+    res
+      .status(200)
+      .json('User and all listings have been deleted by admin!');
   } catch (err) {
     next(err);
   }

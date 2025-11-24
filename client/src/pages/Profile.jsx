@@ -32,11 +32,14 @@ export default function Profile() {
   const [updateSuccess, setUpdateSuccess] = useState(false);
 
   const [showListingsError, setShowListingsError] = useState(false);
-  const [userListings, setUserListings] = useState([]);      // user thường hoặc userListings cho admin
-  const [crawledListings, setCrawledListings] = useState([]); // chỉ dùng cho admin
+  const [userListings, setUserListings] = useState([]); // listing user
+  const [crawledListings, setCrawledListings] = useState([]); // listing crawl
 
-  const [users, setUsers] = useState([]);                    // danh sách user cho admin
+  const [users, setUsers] = useState([]); // danh sách user cho admin
   const [showUsersError, setShowUsersError] = useState(false);
+
+  // 'listings' | 'users' | null
+  const [activeSection, setActiveSection] = useState(null);
 
   // upload avatar
   useEffect(() => {
@@ -129,6 +132,8 @@ export default function Profile() {
   const handleShowListings = async () => {
     try {
       setShowListingsError(false);
+      setActiveSection('listings');   // đang xem listings
+      setUsers([]);                   // ẩn danh sách user
 
       if (!isAdmin) {
         // user thường: chỉ lấy listing của chính mình
@@ -196,7 +201,11 @@ export default function Profile() {
     if (!isAdmin) return;
     try {
       setShowUsersError(false);
-      const res = await fetch('/api/user/admin/all'); // backend sẽ làm sau
+      setActiveSection('users');      // đang xem users
+      setUserListings([]);            // ẩn listings
+      setCrawledListings([]);
+
+      const res = await fetch('/api/user/admin/all');
       const data = await res.json();
       if (data.success === false) {
         setShowUsersError(true);
@@ -341,17 +350,22 @@ export default function Profile() {
         )}
       </div>
 
-      <p className='text-red-700 mt-3'>
-        {showListingsError ? 'Error showing listings' : ''}
-      </p>
-      {isAdmin && (
+      {/* lỗi listings chỉ hiện khi đang xem tab listings */}
+      {activeSection === 'listings' && (
+        <p className='text-red-700 mt-3'>
+          {showListingsError ? 'Error showing listings' : ''}
+        </p>
+      )}
+
+      {/* lỗi users chỉ hiện khi đang xem tab users */}
+      {isAdmin && activeSection === 'users' && (
         <p className='text-red-700 mt-1'>
           {showUsersError ? 'Error showing users' : ''}
         </p>
       )}
 
       {/* LISTINGS SECTION */}
-      {userListings.length > 0 && (
+      {activeSection === 'listings' && userListings.length > 0 && (
         <div className='flex flex-col gap-4 mt-7'>
           <h2 className='text-center text-2xl font-semibold'>
             {isAdmin ? 'User Listings' : 'Your Listings'}
@@ -392,52 +406,54 @@ export default function Profile() {
       )}
 
       {/* CRAWLED LISTINGS (ADMIN) */}
-      {isAdmin && crawledListings.length > 0 && (
-        <div className='flex flex-col gap-4 mt-7'>
-          <h2 className='text-center text-2xl font-semibold'>
-            Crawled Listings
-          </h2>
-          {crawledListings.map((item) => (
-            <div
-              key={item._id}
-              className='border rounded-lg p-3 flex justify-between items-center gap-4'
-            >
-              {/* click vào text để xem chi tiết như cũ */}
-              <Link
-                to={`/crawl/${item._id}`}
-                className='flex flex-col flex-1 overflow-hidden'
+      {isAdmin &&
+        activeSection === 'listings' &&
+        crawledListings.length > 0 && (
+          <div className='flex flex-col gap-4 mt-7'>
+            <h2 className='text-center text-2xl font-semibold'>
+              Crawled Listings
+            </h2>
+            {crawledListings.map((item) => (
+              <div
+                key={item._id}
+                className='border rounded-lg p-3 flex justify-between items-center gap-4'
               >
-                <span className='font-semibold text-slate-800 truncate'>
-                  {item.title}
-                </span>
-                <span className='text-sm text-slate-500 truncate'>
-                  {item.address}
-                </span>
-                <span className='text-sm text-emerald-700 mt-1'>
-                  {item.price_text}
-                </span>
-              </Link>
-
-              <div className='flex flex-col items-end text-xs font-semibold gap-1'>
-                <button
-                  onClick={() => handleCrawledDelete(item._id)}
-                  className='text-red-700 uppercase'
+                {/* click vào text để xem chi tiết như cũ */}
+                <Link
+                  to={`/crawl/${item._id}`}
+                  className='flex flex-col flex-1 overflow-hidden'
                 >
-                  Delete
-                </button>
-
-                {/* EDIT: mở trang form chỉnh sửa */}
-                <Link to={`/admin/crawl-edit/${item._id}`}>
-                  <button className='text-green-700 uppercase'>Edit</button>
+                  <span className='font-semibold text-slate-800 truncate'>
+                    {item.title}
+                  </span>
+                  <span className='text-sm text-slate-500 truncate'>
+                    {item.address}
+                  </span>
+                  <span className='text-sm text-emerald-700 mt-1'>
+                    {item.price_text}
+                  </span>
                 </Link>
+
+                <div className='flex flex-col items-end text-xs font-semibold gap-1'>
+                  <button
+                    onClick={() => handleCrawledDelete(item._id)}
+                    className='text-red-700 uppercase'
+                  >
+                    Delete
+                  </button>
+
+                  {/* EDIT: mở trang form chỉnh sửa */}
+                  <Link to={`/admin/crawl-edit/${item._id}`}>
+                    <button className='text-green-700 uppercase'>Edit</button>
+                  </Link>
+                </div>
               </div>
-            </div>
-          ))}
-        </div>
-      )}
+            ))}
+          </div>
+        )}
 
       {/* USERS LIST (ADMIN) */}
-      {isAdmin && users.length > 0 && (
+      {isAdmin && activeSection === 'users' && users.length > 0 && (
         <div className='flex flex-col gap-4 mt-7'>
           <h2 className='text-center text-2xl font-semibold'>Users</h2>
           {users.map((user) => (
@@ -454,8 +470,8 @@ export default function Profile() {
                   </span>
                 )}
               </div>
+
               <div className='flex flex-col items-end gap-1 text-xs font-semibold'>
-                {/* Chỉ user thường mới có Delete + Edit, admin khác thì không */}
                 {!user.isAdmin && (
                   <>
                     <button
@@ -464,7 +480,6 @@ export default function Profile() {
                     >
                       Delete
                     </button>
-
                     <Link to={`/admin/users/${user._id}`}>
                       <button className='text-green-700 uppercase'>
                         Edit
@@ -473,13 +488,10 @@ export default function Profile() {
                   </>
                 )}
               </div>
-
             </div>
           ))}
         </div>
       )}
-
-
     </div>
   );
 }

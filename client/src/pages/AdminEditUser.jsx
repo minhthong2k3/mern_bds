@@ -1,183 +1,212 @@
+// src/pages/AdminEditUser.jsx
 import { useEffect, useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
-import { useSelector } from 'react-redux';
+import { useNavigate, useParams, Link } from 'react-router-dom';
 
 export default function AdminEditUser() {
   const { userId } = useParams();
   const navigate = useNavigate();
-  const { currentUser } = useSelector((state) => state.user);
 
   const [formData, setFormData] = useState({
     username: '',
     email: '',
-    avatar: '',
-    isAdmin: false,
+    password: '', // new password (optional)
   });
-  const [loading, setLoading] = useState(false);
-  const [fetching, setFetching] = useState(true);
-  const [error, setError] = useState('');
-  const [successMsg, setSuccessMsg] = useState('');
 
-  // load thông tin user
+  const [listings, setListings] = useState([]);
+
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState(false);
+
+  // --- Fetch user info + listings ---
   useEffect(() => {
-    const fetchUser = async () => {
+    const fetchData = async () => {
       try {
-        setFetching(true);
+        setLoading(true);
         setError('');
-        const res = await fetch(`/api/user/${userId}`);
-        const data = await res.json();
-        if (data.success === false) {
-          setError(data.message || 'Error fetching user');
-          setFetching(false);
+
+        const [userRes, listingRes] = await Promise.all([
+          fetch(`/api/user/${userId}`),
+          fetch(`/api/user/admin/${userId}/listings`),
+        ]);
+
+        const userData = await userRes.json();
+        const listingData = await listingRes.json();
+
+        if (userData.success === false) {
+          setError(userData.message || 'Failed to load user');
+          setLoading(false);
           return;
         }
+
         setFormData({
-          username: data.username || '',
-          email: data.email || '',
-          avatar: data.avatar || '',
-          isAdmin: data.isAdmin === true,
+          username: userData.username || '',
+          email: userData.email || '',
+          password: '',
         });
-        setFetching(false);
+
+        if (Array.isArray(listingData)) {
+          setListings(listingData);
+        }
+
+        setLoading(false);
       } catch (err) {
-        setError(err.message || 'Error fetching user');
-        setFetching(false);
+        console.error(err);
+        setError('Failed to load data');
+        setLoading(false);
       }
     };
 
-    fetchUser();
+    fetchData();
   }, [userId]);
 
+  // --- Handlers ---
   const handleChange = (e) => {
-    const { id, value, type, checked } = e.target;
-    if (id === 'isAdmin') {
-      setFormData((prev) => ({ ...prev, isAdmin: checked }));
-    } else {
-      setFormData((prev) => ({ ...prev, [id]: value }));
-    }
+    const { id, value } = e.target;
+    setFormData((prev) => ({
+      ...prev,
+      [id]: value,
+    }));
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setError('');
-    setSuccessMsg('');
     try {
-      setLoading(true);
+      setSaving(true);
+      setError('');
+      setSuccess(false);
+
+      // chỉ gửi các field cần thiết
+      const body = {
+        username: formData.username,
+        email: formData.email,
+      };
+      if (formData.password) {
+        body.password = formData.password; // backend sẽ hash
+      }
+
       const res = await fetch(`/api/user/admin/update/${userId}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData),
+        body: JSON.stringify(body),
       });
+
       const data = await res.json();
-      setLoading(false);
+      setSaving(false);
+
       if (data.success === false) {
         setError(data.message || 'Update failed');
         return;
       }
-      setSuccessMsg('User updated successfully!');
+
+      setSuccess(true);
+      setFormData((prev) => ({
+        ...prev,
+        password: '', // clear password field
+      }));
     } catch (err) {
-      setLoading(false);
-      setError(err.message || 'Update failed');
+      console.error(err);
+      setSaving(false);
+      setError('Update failed');
     }
   };
 
-  // Nếu currentUser không phải admin (trong trường hợp nào đó) thì chặn
-  if (!currentUser?.isAdmin) {
-    return (
-      <div className="p-3 max-w-xl mx-auto">
-        <h1 className="text-2xl font-semibold text-center my-7">
-          Admin only
-        </h1>
-        <p className="text-center text-red-700">
-          You are not allowed to access this page.
-        </p>
-      </div>
-    );
-  }
+  const handleDeleteListing = async (listingId) => {
+    const ok = window.confirm('Delete this listing?');
+    if (!ok) return;
 
-  if (fetching) {
+    try {
+      const res = await fetch(`/api/listing/delete/${listingId}`, {
+        method: 'DELETE',
+      });
+      const data = await res.json();
+      if (data.success === false) {
+        alert(data.message || 'Delete failed');
+        return;
+      }
+      setListings((prev) => prev.filter((l) => l._id !== listingId));
+    } catch (err) {
+      console.error(err);
+      alert('Delete failed');
+    }
+  };
+
+  if (loading) {
     return (
-      <div className="p-3 max-w-xl mx-auto">
-        <h1 className="text-2xl font-semibold text-center my-7">
-          Edit User
-        </h1>
-        <p className="text-center text-slate-600">Loading user...</p>
-      </div>
+      <main className="p-3 max-w-3xl mx-auto">
+        <p>Loading...</p>
+      </main>
     );
   }
 
   return (
-    <div className="p-3 max-w-xl mx-auto">
+    <main className="p-3 max-w-3xl mx-auto">
       <h1 className="text-3xl font-semibold text-center my-7">
         Edit User (Admin)
       </h1>
 
+      {/* FORM EDIT USER */}
       <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-        <div>
-          <label className="block text-sm font-medium text-slate-700 mb-1">
-            Username
-          </label>
+        <div className="flex flex-col gap-2">
+          <label className="font-semibold">Username</label>
           <input
             type="text"
             id="username"
+            className="border p-3 rounded-lg"
             value={formData.username}
             onChange={handleChange}
-            className="border p-3 rounded-lg w-full"
-            placeholder="username"
+            required
           />
         </div>
 
-        <div>
-          <label className="block text-sm font-medium text-slate-700 mb-1">
-            Email
-          </label>
+        <div className="flex flex-col gap-2">
+          <label className="font-semibold">Email</label>
           <input
             type="email"
             id="email"
+            className="border p-3 rounded-lg"
             value={formData.email}
             onChange={handleChange}
-            className="border p-3 rounded-lg w-full"
-            placeholder="email"
+            required
           />
         </div>
 
-        <div>
-          <label className="block text-sm font-medium text-slate-700 mb-1">
-            Avatar URL
+        <div className="flex flex-col gap-2">
+          <label className="font-semibold">
+            New password{' '}
+            <span className="text-sm font-normal text-slate-500">
+              (leave blank to keep current)
+            </span>
           </label>
           <input
-            type="text"
-            id="avatar"
-            value={formData.avatar}
+            type="password"
+            id="password"
+            className="border p-3 rounded-lg"
+            value={formData.password}
             onChange={handleChange}
-            className="border p-3 rounded-lg w-full"
-            placeholder="Avatar image URL"
+            placeholder="Enter new password"
           />
         </div>
 
-        <label className="inline-flex items-center gap-2 mt-2">
-          <input
-            type="checkbox"
-            id="isAdmin"
-            checked={formData.isAdmin}
-            onChange={handleChange}
-            className="w-4 h-4"
-          />
-          <span className="text-sm text-slate-700">
-            Is admin
-          </span>
-        </label>
+        {error && <p className="text-red-700 text-sm">{error}</p>}
+        {success && (
+          <p className="text-green-700 text-sm">
+            User updated successfully!
+          </p>
+        )}
 
-        <div className="flex gap-3 mt-4">
+        <div className="flex flex-col sm:flex-row gap-3 mt-2">
           <button
             type="submit"
-            disabled={loading}
+            disabled={saving}
             className="flex-1 bg-slate-700 text-white rounded-lg p-3 uppercase hover:opacity-95 disabled:opacity-80"
           >
-            {loading ? 'Saving...' : 'Save changes'}
+            {saving ? 'Saving...' : 'Save changes'}
           </button>
           <button
             type="button"
-            onClick={() => navigate('/profile')}
+            onClick={() => navigate(-1)}
             className="flex-1 border border-slate-400 text-slate-700 rounded-lg p-3 uppercase hover:bg-slate-50"
           >
             Back
@@ -185,10 +214,57 @@ export default function AdminEditUser() {
         </div>
       </form>
 
-      {error && <p className="text-red-700 mt-4 text-sm">{error}</p>}
-      {successMsg && (
-        <p className="text-green-700 mt-4 text-sm">{successMsg}</p>
+      {/* LISTINGS CỦA USER NÀY */}
+      {listings.length > 0 && (
+        <section className="mt-10">
+          <h2 className="text-2xl font-semibold mb-4 text-center">
+            User Listings
+          </h2>
+          <div className="flex flex-col gap-4">
+            {listings.map((listing) => (
+              <div
+                key={listing._id}
+                className="border rounded-lg p-3 flex justify-between items-center gap-4"
+              >
+                <Link
+                  to={`/listing/${listing._id}`}
+                  className="flex items-center gap-3 flex-1"
+                >
+                  {listing.imageUrls?.[0] && (
+                    <img
+                      src={listing.imageUrls[0]}
+                      alt="listing cover"
+                      className="h-16 w-16 object-cover rounded"
+                    />
+                  )}
+                  <div className="flex flex-col">
+                    <span className="font-semibold text-slate-800 truncate">
+                      {listing.name}
+                    </span>
+                    <span className="text-sm text-slate-500 truncate">
+                      {listing.address}
+                    </span>
+                  </div>
+                </Link>
+
+                <div className="flex flex-col items-end text-xs font-semibold gap-1">
+                  <button
+                    onClick={() => handleDeleteListing(listing._id)}
+                    className="text-red-700 uppercase"
+                  >
+                    Delete
+                  </button>
+                  <Link to={`/update-listing/${listing._id}`}>
+                    <button className="text-green-700 uppercase">
+                      Edit
+                    </button>
+                  </Link>
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
       )}
-    </div>
+    </main>
   );
 }
