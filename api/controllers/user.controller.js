@@ -53,32 +53,40 @@ export const deleteUser = async (req, res, next) => {
   try {
     const userId = req.params.id;
 
-    // Xoá toàn bộ listing do user này tạo
+    // Xoá toàn bộ listing do user này tạo (mọi status)
     await Listing.deleteMany({ userRef: userId });
 
     // Xoá user
     await User.findByIdAndDelete(userId);
 
     res.clearCookie('access_token');
-    res
-      .status(200)
-      .json('User and all listings have been deleted!');
+    res.status(200).json('User and all listings have been deleted!');
   } catch (error) {
     next(error);
   }
 };
 
 // Lấy listing của 1 user (chỉ chủ tài khoản)
+// Hỗ trợ query ?status=pending|approved|rejected (tuỳ chọn)
 export const getUserListings = async (req, res, next) => {
-  if (req.user.id === req.params.id) {
-    try {
-      const listings = await Listing.find({ userRef: req.params.id });
-      res.status(200).json(listings);
-    } catch (error) {
-      next(error);
-    }
-  } else {
+  if (req.user.id !== req.params.id) {
     return next(errorHandler(401, 'You can only view your own listings!'));
+  }
+
+  try {
+    const { status } = req.query;
+    const query = { userRef: req.params.id };
+
+    // nếu status hợp lệ thì lọc theo status
+    const allowedStatus = ['pending', 'approved', 'rejected'];
+    if (status && allowedStatus.includes(status)) {
+      query.status = status;
+    }
+
+    const listings = await Listing.find(query).sort({ createdAt: -1 });
+    res.status(200).json(listings);
+  } catch (error) {
+    next(error);
   }
 };
 
@@ -105,6 +113,7 @@ export const getUser = async (req, res, next) => {
 //
 
 // Lấy tất cả listing của một user (chỉ admin)
+// Hỗ trợ query ?status=pending|approved|rejected (tuỳ chọn)
 export const adminGetUserListings = async (req, res, next) => {
   try {
     if (!req.user?.isAdmin) {
@@ -112,7 +121,15 @@ export const adminGetUserListings = async (req, res, next) => {
     }
 
     const { id } = req.params; // id của user
-    const listings = await Listing.find({ userRef: id }).sort({ createdAt: -1 });
+    const { status } = req.query;
+
+    const query = { userRef: id };
+    const allowedStatus = ['pending', 'approved', 'rejected'];
+    if (status && allowedStatus.includes(status)) {
+      query.status = status;
+    }
+
+    const listings = await Listing.find(query).sort({ createdAt: -1 });
 
     res.status(200).json(listings);
   } catch (err) {

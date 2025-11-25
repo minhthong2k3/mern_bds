@@ -27,9 +27,10 @@ router.get('/admin/all', verifyToken, adminGetAllUsers);
 router.post('/admin/update/:id', verifyToken, adminUpdateUser);
 router.delete('/admin/delete/:id', verifyToken, adminDeleteUser);
 
+// admin xem toàn bộ listings của 1 user (PHẢI ĐỂ TRƯỚC '/:id')
+router.get('/admin/:id/listings', verifyToken, adminGetUserListings);
+
 // ===== XEM THÔNG TIN 1 USER (chủ tài khoản hoặc admin) =====
 router.get('/:id', verifyToken, getUser);
-// admin xem toàn bộ listings của 1 user
-router.get('/admin/:id/listings', verifyToken, adminGetUserListings);
 
 export default router;

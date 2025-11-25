@@ -17,11 +17,13 @@ import {
   deleteUserSuccess,
   signOutUserStart,
 } from '../redux/user/userSlice';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 
 export default function Profile() {
   const fileRef = useRef(null);
   const dispatch = useDispatch();
+  const navigate = useNavigate();
+
   const { currentUser, loading, error } = useSelector((state) => state.user);
   const isAdmin = currentUser?.isAdmin === true;
 
@@ -132,8 +134,8 @@ export default function Profile() {
   const handleShowListings = async () => {
     try {
       setShowListingsError(false);
-      setActiveSection('listings');   // đang xem listings
-      setUsers([]);                   // ẩn danh sách user
+      setActiveSection('listings'); // đang xem listings
+      setUsers([]); // ẩn danh sách user
 
       if (!isAdmin) {
         // user thường: chỉ lấy listing của chính mình
@@ -201,8 +203,8 @@ export default function Profile() {
     if (!isAdmin) return;
     try {
       setShowUsersError(false);
-      setActiveSection('users');      // đang xem users
-      setUserListings([]);            // ẩn listings
+      setActiveSection('users'); // đang xem users
+      setUserListings([]); // ẩn listings
       setCrawledListings([]);
 
       const res = await fetch('/api/user/admin/all');
@@ -249,12 +251,26 @@ export default function Profile() {
           ref={fileRef}
           onChange={(e) => setFile(e.target.files[0])}
         />
-        <img
-          onClick={() => fileRef.current.click()}
-          src={formData.avatar || currentUser.avatar}
-          alt='profile'
-          className='rounded-full h-24 w-24 object-cover cursor-pointer self-center mt-2'
-        />
+
+        {/* Avatar + nút Quản lý tin (user thường) */}
+        <div className='flex items-center justify-center gap-3 mt-2'>
+          <img
+            onClick={() => fileRef.current.click()}
+            src={formData.avatar || currentUser.avatar}
+            alt='profile'
+            className='rounded-full h-24 w-24 object-cover cursor-pointer'
+          />
+          {!isAdmin && (
+            <button
+              type='button'
+              onClick={() => navigate('/my-listings')}
+              className='text-xs sm:text-sm px-3 py-1 rounded-lg border border-sky-600 text-sky-700 hover:bg-sky-50'
+            >
+              Quản lý tin
+            </button>
+          )}
+        </div>
+
         <p className='text-sm self-center'>
           {fileUploadError ? (
             <span className='text-red-700'>
@@ -300,15 +316,25 @@ export default function Profile() {
           {loading ? 'Loading...' : 'Update'}
         </button>
 
-        {/* User thường mới có nút create listing */}
+                {/* User thường mới có nút create listing + quản lý tin của mình */}
         {!isAdmin && (
-          <Link
-            to='/create-listing'
-            className='bg-green-700 text-white p-3 rounded-lg uppercase text-center hover:opacity-95'
-          >
-            Create Listing
-          </Link>
+          <>
+            <Link
+              to='/create-listing'
+              className='bg-green-700 text-white p-3 rounded-lg uppercase text-center hover:opacity-95'
+            >
+              Create Listing
+            </Link>
+
+            <Link
+              to='/my-listings'
+              className='bg-slate-700 text-white p-3 rounded-lg uppercase text-center hover:opacity-95'
+            >
+              Quản lý tin của tôi
+            </Link>
+          </>
         )}
+
       </form>
 
       {/* DELETE / SIGN OUT */}
@@ -332,6 +358,7 @@ export default function Profile() {
       </p>
 
       {/* BUTTONS SHOW LISTINGS / USERS */}
+            {/* BUTTONS SHOW LISTINGS / USERS */}
       <div className='flex flex-col gap-2 mt-6'>
         <button
           onClick={handleShowListings}
@@ -341,14 +368,25 @@ export default function Profile() {
         </button>
 
         {isAdmin && (
-          <button
-            onClick={handleShowUsers}
-            className='text-blue-700 w-full border rounded-lg py-2 hover:bg-blue-50'
-          >
-            Show Users
-          </button>
+          <>
+            <button
+              onClick={handleShowUsers}
+              className='text-blue-700 w-full border rounded-lg py-2 hover:bg-blue-50'
+            >
+              Show Users
+            </button>
+
+            {/* ✅ Nút mở trang quản lý tin theo trạng thái */}
+            <Link
+              to='/admin/listings'
+              className='w-full text-center border rounded-lg py-2 mt-1 text-purple-700 hover:bg-purple-50 uppercase text-sm font-semibold'
+            >
+              Quản lý tin người dùng
+            </Link>
+          </>
         )}
       </div>
+
 
       {/* lỗi listings chỉ hiện khi đang xem tab listings */}
       {activeSection === 'listings' && (

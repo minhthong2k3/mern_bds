@@ -10,10 +10,15 @@ import {
   updateCrawledListing,    // ✅ update crawl
   deleteCrawledListing,    // ✅ delete crawl
   getAdminAllListings,     // ✅ admin tổng hợp
+  adminGetListingsByStatus,
+  adminUpdateListingStatus,
 } from '../controllers/listing.controller.js';
 import { verifyToken } from '../utils/verifyUser.js';
 
 const router = express.Router();
+// admin quản lý trạng thái listing user
+router.get('/admin/user-listings', verifyToken, adminGetListingsByStatus);
+router.put('/admin/status/:id', verifyToken, adminUpdateListingStatus);
 
 // CRUD listing user
 router.post('/create', verifyToken, createListing);

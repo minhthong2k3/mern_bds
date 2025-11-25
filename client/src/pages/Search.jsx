@@ -194,14 +194,12 @@ export default function Search() {
   };
 
   return (
-    <div className='flex flex-col md:flex-row'>
+    <div className='flex flex-col md:flex-row w-full'>
       {/* SIDEBAR */}
-      <div className='p-7  border-b-2 md:border-r-2 md:min-h-screen'>
+      <div className='w-full md:w-[260px] lg:w-[280px] p-7 border-b-2 md:border-r-2 md:min-h-screen flex-shrink-0'>
         <form onSubmit={handleSubmit} className='flex flex-col gap-8'>
-          <div className='flex items-center gap-2'>
-            <label className='whitespace-nowrap font-semibold'>
-              Search Term:
-            </label>
+          <div className='flex flex-col gap-2'>
+            <label className='font-semibold'>Search Term:</label>
             <input
               type='text'
               id='searchTerm'
@@ -212,75 +210,79 @@ export default function Search() {
             />
           </div>
 
-          <div className='flex gap-2 flex-wrap items-center'>
+          <div className='flex flex-col gap-2'>
             <label className='font-semibold'>Type:</label>
-            <div className='flex gap-2'>
-              <input
-                type='checkbox'
-                id='all'
-                className='w-5'
-                onChange={handleChange}
-                checked={sidebardata.type === 'all'}
-              />
-              <span>Rent & Sale</span>
-            </div>
-            <div className='flex gap-2'>
-              <input
-                type='checkbox'
-                id='rent'
-                className='w-5'
-                onChange={handleChange}
-                checked={sidebardata.type === 'rent'}
-              />
-              <span>Rent</span>
-            </div>
-            <div className='flex gap-2'>
-              <input
-                type='checkbox'
-                id='sale'
-                className='w-5'
-                onChange={handleChange}
-                checked={sidebardata.type === 'sale'}
-              />
-              <span>Sale</span>
-            </div>
-            <div className='flex gap-2'>
-              <input
-                type='checkbox'
-                id='offer'
-                className='w-5'
-                onChange={handleChange}
-                checked={sidebardata.offer}
-              />
-              <span>Offer</span>
+            <div className='flex flex-wrap gap-3'>
+              <label className='flex items-center gap-2'>
+                <input
+                  type='checkbox'
+                  id='all'
+                  className='w-5'
+                  onChange={handleChange}
+                  checked={sidebardata.type === 'all'}
+                />
+                <span>Rent & Sale</span>
+              </label>
+              <label className='flex items-center gap-2'>
+                <input
+                  type='checkbox'
+                  id='rent'
+                  className='w-5'
+                  onChange={handleChange}
+                  checked={sidebardata.type === 'rent'}
+                />
+                <span>Rent</span>
+              </label>
+              <label className='flex items-center gap-2'>
+                <input
+                  type='checkbox'
+                  id='sale'
+                  className='w-5'
+                  onChange={handleChange}
+                  checked={sidebardata.type === 'sale'}
+                />
+                <span>Sale</span>
+              </label>
+              <label className='flex items-center gap-2'>
+                <input
+                  type='checkbox'
+                  id='offer'
+                  className='w-5'
+                  onChange={handleChange}
+                  checked={sidebardata.offer}
+                />
+                <span>Offer</span>
+              </label>
             </div>
           </div>
 
-          <div className='flex gap-2 flex-wrap items-center'>
+          <div className='flex flex-col gap-2'>
             <label className='font-semibold'>Amenities:</label>
-            <div className='flex gap-2'>
-              <input
-                type='checkbox'
-                id='parking'
-                className='w-5'
-                onChange={handleChange}
-                checked={sidebardata.parking}
-              />
-              <span>Parking</span>
-            </div>
-            <div className='flex gap-2'>
-              <input
-                type='checkbox'
-                id='furnished'
-                className='w-5'
-                onChange={handleChange}
-                checked={sidebardata.furnished}
-              />
-              <span>Furnished</span>
+            <div className='flex flex-wrap gap-3'>
+              <label className='flex items-center gap-2'>
+                <input
+                  type='checkbox'
+                  id='parking'
+                  className='w-5'
+                  onChange={handleChange}
+                  checked={sidebardata.parking}
+                />
+                <span>Parking</span>
+              </label>
+              <label className='flex items-center gap-2'>
+                <input
+                  type='checkbox'
+                  id='furnished'
+                  className='w-5'
+                  onChange={handleChange}
+                  checked={sidebardata.furnished}
+                />
+                <span>Furnished</span>
+              </label>
             </div>
           </div>
 
-          <div className='flex items-center gap-2'>
+          <div className='flex flex-col gap-2'>
             <label className='font-semibold'>Sort:</label>
             <select
               onChange={handleChange}
@@ -302,12 +304,12 @@ export default function Search() {
       </div>
 
       {/* KẾT QUẢ */}
-      <div className='flex-1'>
+      <div className='flex-1 min-w-0'>
         <h1 className='text-3xl font-semibold border-b p-3 text-slate-700 mt-5'>
           Listing results:
         </h1>
 
-        <div className='p-7 flex flex-wrap gap-4'>
+        <div className='p-7 grid gap-6 sm:grid-cols-2 lg:grid-cols-3'>
           {!loading && listings.length === 0 && (
             <p className='text-xl text-slate-700'>No listing found!</p>
           )}
@@ -326,7 +328,7 @@ export default function Search() {
           {showMore && (
             <button
               onClick={onShowMoreClick}
-              className='text-green-700 hover:underline p-7 text-center w-full'
+              className='text-green-700 hover:underline p-7 text-center col-span-full'
             >
               Show more
             </button>
@@ -339,7 +341,7 @@ export default function Search() {
             <h1 className='text-3xl font-semibold border-b p-3 text-slate-700 mt-5'>
               Crawled listings (Đà Nẵng):
             </h1>
-            <div className='p-7 flex flex-wrap gap-4'>
+            <div className='p-7 grid gap-6 sm:grid-cols-2 lg:grid-cols-3'>
               {crawledListings.map((listing) => (
                 <ListingItem key={listing._id} listing={listing} />
               ))}

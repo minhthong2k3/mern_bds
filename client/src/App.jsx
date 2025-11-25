@@ -11,9 +11,11 @@ import UpdateListing from './pages/UpdateListing';
 import Listing from './pages/Listing';
 import Search from './pages/Search';
 import AdminEditUser from './pages/AdminEditUser';
-
-// 👇 import thêm page mới
 import EditCrawledListing from './pages/EditCrawledListing';
+
+// 👇 import thêm 2 page quản lý tin
+import UserListingManager from './pages/UserListingManager';
+import AdminListingManager from './pages/AdminListingManager';
 
 export default function App() {
   return (
@@ -48,10 +50,22 @@ export default function App() {
               element={<EditCrawledListing />}
             />
 
-            {/* ✅ admin edit user */}
+            {/* admin edit user */}
             <Route
               path='/admin/users/:userId'
               element={<AdminEditUser />}
+            />
+
+            {/* ✅ user quản lý tin của chính mình */}
+            <Route
+              path='/my-listings'
+              element={<UserListingManager />}
+            />
+
+            {/* ✅ admin quản lý tin người dùng */}
+            <Route
+              path='/admin/listings'
+              element={<AdminListingManager />}
             />
           </Route>
         </Routes>

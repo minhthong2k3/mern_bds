@@ -1,3 +1,4 @@
+// models/listing.model.js
 import mongoose from 'mongoose';
 
 const listingSchema = new mongoose.Schema(
@@ -54,6 +55,18 @@ const listingSchema = new mongoose.Schema(
     userRef: {
       type: String,
       required: true,
+    },
+
+    // ================== TRẠNG THÁI DUYỆT TIN ==================
+    status: {
+      type: String,
+      enum: ['pending', 'approved', 'rejected'],
+      default: 'pending', // user tạo mới -> chờ duyệt
+    },
+    // nếu bị rejected thì admin sẽ ghi lý do ở đây
+    rejectReason: {
+      type: String,
+      default: '',
     },
 
     // ================== PHẦN MỚI THÊM (PHỤC VỤ CRAWL) ==================

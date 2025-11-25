@@ -5,9 +5,24 @@ import { errorHandler } from '../utils/error.js';
 
 // =============== LISTING USER TỰ ĐĂNG ===============
 
+// Tạo listing mới (user)
 export const createListing = async (req, res, next) => {
   try {
-    const listing = await Listing.create(req.body);
+    // Không tin ai từ body cả, ép lại các field nhạy cảm
+    const payload = {
+      ...req.body,
+      userRef: req.user.id,    // luôn là user hiện tại
+      source: 'user',          // đánh dấu nguồn
+      status: 'pending',       // luôn chờ duyệt
+      rejectReason: '',        // rỗng
+    };
+
+    // Nếu client cố gửi mấy field này thì cũng bỏ qua
+    delete payload._id;
+    delete payload.createdAt;
+    delete payload.updatedAt;
+
+    const listing = await Listing.create(payload);
     return res.status(201).json(listing);
   } catch (error) {
     next(error);
@@ -51,19 +66,48 @@ export const updateListing = async (req, res, next) => {
     // copy dữ liệu update từ body ra
     const updateData = { ...req.body };
 
-    // ===== PHÂN BIỆT USER / ADMIN ĐỐI VỚI userRef =====
+    // ===== PHÂN BIỆT USER / ADMIN ĐỐI VỚI userRef & status =====
 
     if (!req.user.isAdmin) {
-      // 👉 USER thường: luôn ép userRef = chính user đang đăng nhập
-      // (kể cả có cố gửi userRef khác trong body cũng bị ghi đè)
+      // 👉 USER thường:
+      // - luôn ép userRef = chính user đang đăng nhập
+      // - không cho tự sửa status / rejectReason
+      // - mỗi lần sửa -> đưa tin về pending, xoá lý do reject
       updateData.userRef = req.user.id;
-    } else if (req.user.isAdmin && !isOwner) {
-      // 👉 ADMIN đang sửa tin của người khác: không cho đổi userRef
-      if ('userRef' in updateData) {
+      delete updateData.status;
+      delete updateData.rejectReason;
+
+      updateData.status = 'pending';
+      updateData.rejectReason = '';
+    } else {
+      // 👉 ADMIN:
+
+      // Nếu admin đang sửa tin của người khác: không cho đổi chủ tin
+      if (!isOwner && 'userRef' in updateData) {
         delete updateData.userRef;
       }
+
+      // Admin được phép chỉnh status + rejectReason, nhưng ta chuẩn hoá:
+      if (updateData.status) {
+        const allowed = ['pending', 'approved', 'rejected'];
+        if (!allowed.includes(updateData.status)) {
+          return next(errorHandler(400, 'Invalid status value'));
+        }
+
+        // nếu admin duyệt hoặc chuyển về pending -> xoá lý do reject
+        if (updateData.status === 'approved' || updateData.status === 'pending') {
+          updateData.rejectReason = '';
+        }
+
+        // nếu admin reject mà không gửi lý do thì giữ lý do cũ (nếu có)
+        if (updateData.status === 'rejected' && updateData.rejectReason === undefined) {
+          updateData.rejectReason = listing.rejectReason || '';
+        }
+      } else {
+        // không gửi status -> không đụng rejectReason
+        delete updateData.status;
+      }
     }
-    // (Admin sửa tin của CHÍNH MÌNH thì cứ để nguyên, nhưng thực ra cũng không cần đổi userRef)
 
     const updatedListing = await Listing.findByIdAndUpdate(
       req.params.id,
@@ -77,7 +121,6 @@ export const updateListing = async (req, res, next) => {
   }
 };
 
-
 export const getListing = async (req, res, next) => {
   try {
     const listing = await Listing.findById(req.params.id);
@@ -90,6 +133,7 @@ export const getListing = async (req, res, next) => {
   }
 };
 
+// Public search: CHỈ hiển thị tin đã duyệt (approved)
 export const getListings = async (req, res, next) => {
   try {
     const limit = parseInt(req.query.limit) || 9;
@@ -125,6 +169,8 @@ export const getListings = async (req, res, next) => {
       furnished,
       parking,
       type,
+      status: 'approved',      // 👈 chỉ tin đã duyệt
+      source: 'user',          // 👈 chỉ tin user tự đăng (nếu muốn tách khỏi crawler)
     })
       .sort({ [sort]: order })
       .limit(limit)
@@ -136,7 +182,78 @@ export const getListings = async (req, res, next) => {
   }
 };
 
+//
+// =============== ADMIN QUẢN LÝ TRẠNG THÁI LISTING USER ===============
+//
+
+// GET /api/listing/admin/user-listings?status=pending|approved|rejected
+export const adminGetListingsByStatus = async (req, res, next) => {
+  try {
+    if (!req.user?.isAdmin) {
+      return next(errorHandler(403, 'Admin only!'));
+    }
+
+    const status = req.query.status || 'pending';
+    const allowed = ['pending', 'approved', 'rejected'];
+    if (!allowed.includes(status)) {
+      return next(errorHandler(400, 'Invalid status value'));
+    }
+
+    const listings = await Listing.find({
+      source: 'user',
+      status,
+    })
+      .sort({ createdAt: -1 })
+      .limit(200);
+
+    res.status(200).json(listings);
+  } catch (error) {
+    next(error);
+  }
+};
+
+// PUT /api/listing/admin/status/:id
+// body: { status: 'approved' | 'rejected' | 'pending', rejectReason?: string }
+export const adminUpdateListingStatus = async (req, res, next) => {
+  try {
+    if (!req.user?.isAdmin) {
+      return next(errorHandler(403, 'Admin only!'));
+    }
+
+    const { status, rejectReason } = req.body;
+    const allowed = ['pending', 'approved', 'rejected'];
+    if (!allowed.includes(status)) {
+      return next(errorHandler(400, 'Invalid status value'));
+    }
+
+    const update = { status };
+
+    if (status === 'rejected') {
+      update.rejectReason = rejectReason || '';
+    } else {
+      // approved / pending => clear lý do reject
+      update.rejectReason = '';
+    }
+
+    const listing = await Listing.findByIdAndUpdate(
+      req.params.id,
+      { $set: update },
+      { new: true }
+    );
+
+    if (!listing) {
+      return next(errorHandler(404, 'Listing not found!'));
+    }
+
+    res.status(200).json(listing);
+  } catch (error) {
+    next(error);
+  }
+};
+
+//
 // =============== ĐỌC DỮ LIỆU CRAWL TỪ MongoDB ===============
+//
 
 // Phân trang: tối đa 100 tin, mỗi trang 20 tin
 // GET /api/listing/crawl?startIndex=0&searchTerm=&sort=regularPrice|createdAt&order=asc|desc
@@ -171,40 +288,37 @@ export const getCrawledListings = async (req, res, next) => {
     const rawDocs = await col.find(filter).limit(MAX_TOTAL).toArray();
 
     // Chuẩn hoá giá & gắn key sort
-    const docsWithKey = rawDocs.map((doc) => {
-      let sortKey = 0;
+   const docsWithKey = rawDocs.map((doc) => {
+   let sortKey = 0;
 
-      if (sortParam === 'regularPrice') {
-        // mặc định lấy price_value
-        let price = typeof doc.price_value === 'number' ? doc.price_value : 0;
-        const text = (doc.price_text || '').toLowerCase();
+  if (sortParam === 'regularPrice') {
+    // luôn ép price_value về Number
+    let price = Number(doc.price_value);
+    if (Number.isNaN(price)) price = 0;
 
-        // nếu là giá theo m2 (vd: "68 triệu /m2", "68 triệu / m²")
-        const isPerM2 =
-          text.includes('/m2') ||
-          text.includes('/m²') ||
-          (text.includes('/m') && text.includes('triệu'));
+    const text = (doc.price_text || '').toLowerCase();
 
-        if (isPerM2) {
-          const area =
-            typeof doc.area_m2 === 'number' && doc.area_m2 > 0
-              ? doc.area_m2
-              : null;
-          if (area) {
-            // chuẩn hoá: tổng giá = đơn giá * diện tích
-            price = price * area;
-          }
-        }
+    const isPerM2 =
+      text.includes('/m2') ||
+      text.includes('/m²') ||
+      (text.includes('/m') && text.includes('triệu'));
 
-        sortKey = price;
-      } else {
-        // sort theo thời gian crawl
-        const t = doc.crawled_at ? new Date(doc.crawled_at).getTime() : 0;
-        sortKey = t;
+    if (isPerM2) {
+      let area = Number(doc.area_m2);
+      if (!Number.isNaN(area) && area > 0) {
+        price = price * area;
       }
+    }
 
-      return { ...doc, _sortKey: sortKey };
-    });
+    sortKey = price;
+  } else {
+    const t = doc.crawled_at ? new Date(doc.crawled_at).getTime() : 0;
+    sortKey = t;
+  }
+
+  return { ...doc, _sortKey: sortKey };
+});
+
 
     // Sort theo _sortKey
     docsWithKey.sort((a, b) => {
@@ -254,6 +368,7 @@ export const getCrawledListingById = async (req, res, next) => {
 // ================= ADMIN: UPDATE / DELETE CRAWLED LISTING =================
 
 // PUT /api/listing/crawl/:id
+// PUT /api/listing/crawl/:id
 export const updateCrawledListing = async (req, res, next) => {
   try {
     if (!req.user?.isAdmin) {
@@ -266,7 +381,7 @@ export const updateCrawledListing = async (req, res, next) => {
     const col = mongoose.connection.db.collection(collectionName);
 
     // những field cho phép sửa (có thể thêm/bớt tuỳ bạn)
-    const {
+    let {
       title,
       brief,
       address,
@@ -277,17 +392,36 @@ export const updateCrawledListing = async (req, res, next) => {
       price_value,
     } = req.body;
 
-    const updateDoc = {
-      ...(title !== undefined && { title }),
-      ...(brief !== undefined && { brief }),
-      ...(address !== undefined && { address }),
-      ...(area_m2 !== undefined && { area_m2 }),
-      ...(duong_truoc_nha !== undefined && { duong_truoc_nha }),
-      ...(phap_ly !== undefined && { phap_ly }),
-      ...(price_text !== undefined && { price_text }),
-      ...(price_value !== undefined && { price_value }),
-      updated_at: new Date(),
-    };
+    const updateDoc = {};
+
+    if (title !== undefined) updateDoc.title = title;
+    if (brief !== undefined) updateDoc.brief = brief;
+    if (address !== undefined) updateDoc.address = address;
+    if (duong_truoc_nha !== undefined) updateDoc.duong_truoc_nha = duong_truoc_nha;
+    if (phap_ly !== undefined) updateDoc.phap_ly = phap_ly;
+    if (price_text !== undefined) updateDoc.price_text = price_text;
+
+    // ÉP KIỂU SỐ CHO area_m2
+    if (area_m2 !== undefined) {
+      const nArea = Number(area_m2);
+      if (!Number.isNaN(nArea)) {
+        updateDoc.area_m2 = nArea;
+      } else {
+        // nếu rỗng hoặc không phải số thì xoá field hoặc bỏ qua, tuỳ bạn
+        // ở đây mình bỏ qua để không ghi đè giá trị cũ
+      }
+    }
+
+    // ÉP KIỂU SỐ CHO price_value (dùng để sort high/low)
+    if (price_value !== undefined) {
+      const nPrice = Number(price_value);
+      if (!Number.isNaN(nPrice)) {
+        updateDoc.price_value = nPrice;
+      }
+      // nếu NaN thì cũng bỏ qua, giữ nguyên giá trị cũ
+    }
+
+    updateDoc.updated_at = new Date();
 
     const result = await col.findOneAndUpdate(
       { _id: new ObjectId(id) },
@@ -304,6 +438,7 @@ export const updateCrawledListing = async (req, res, next) => {
     next(error);
   }
 };
+
 
 // DELETE /api/listing/crawl/:id
 export const deleteCrawledListing = async (req, res, next) => {
