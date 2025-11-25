@@ -195,8 +195,8 @@ export default function Search() {
 
   return (
     <div className='flex flex-col md:flex-row w-full'>
-      {/* SIDEBAR */}
-      <div className='w-full md:w-[260px] lg:w-[280px] p-7 border-b-2 md:border-r-2 md:min-h-screen flex-shrink-0'>
+      {/* SIDEBAR – rộng hơn, ăn hết cột bên trái */}
+      <div className='w-full md:w-[320px] lg:w-[360px] p-7 border-b-2 md:border-r-2 md:min-h-screen flex-shrink-0'>
         <form onSubmit={handleSubmit} className='flex flex-col gap-8'>
           <div className='flex flex-col gap-2'>
             <label className='font-semibold'>Search Term:</label>

@@ -21,7 +21,8 @@ export default function App() {
   return (
     <BrowserRouter>
       <Header />
-      <main className="max-w-6xl mx-auto">
+      {/* bỏ max-w-6xl mx-auto để nội dung full chiều ngang */}
+      <main className="w-full">
         <Routes>
           <Route path='/' element={<Home />} />
           <Route path='/sign-in' element={<SignIn />} />
@@ -56,13 +57,13 @@ export default function App() {
               element={<AdminEditUser />}
             />
 
-            {/* ✅ user quản lý tin của chính mình */}
+            {/* user quản lý tin của chính mình */}
             <Route
               path='/my-listings'
               element={<UserListingManager />}
             />
 
-            {/* ✅ admin quản lý tin người dùng */}
+            {/* admin quản lý tin người dùng */}
             <Route
               path='/admin/listings'
               element={<AdminListingManager />}
