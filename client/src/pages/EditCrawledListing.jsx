@@ -11,8 +11,12 @@ export default function EditCrawledListing() {
     brief: '',
     address: '',
     area_m2: '',
-    duong_truoc_nha: '',
-    phap_ly: '',
+    // các field mới
+    street_width: '',
+    size_text: '',
+    direction: '',
+    image: '',
+    // giá
     price_text: '',
     price_value: '',
   });
@@ -37,8 +41,10 @@ export default function EditCrawledListing() {
           brief: data.brief || '',
           address: data.address || '',
           area_m2: data.area_m2 ?? '',
-          duong_truoc_nha: data.duong_truoc_nha || '',
-          phap_ly: data.phap_ly || '',
+          street_width: data.street_width || '',
+          size_text: data.size_text || '',
+          direction: data.direction || '',
+          image: data.image || '',
           price_text: data.price_text || '',
           price_value: data.price_value ?? '',
         }));
@@ -92,120 +98,160 @@ export default function EditCrawledListing() {
   };
 
   return (
-    <main className='p-3 max-w-3xl mx-auto'>
-      <h1 className='text-3xl font-semibold text-center my-7'>
+    <main className="p-3 max-w-3xl mx-auto">
+      <h1 className="text-3xl font-semibold text-center my-7">
         Edit Crawled Listing
       </h1>
 
-      <form onSubmit={handleSubmit} className='flex flex-col gap-4'>
+      <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+        {/* Tiêu đề */}
         <input
-          type='text'
-          id='title'
-          className='border p-3 rounded-lg'
-          placeholder='Title'
+          type="text"
+          id="title"
+          className="border p-3 rounded-lg"
+          placeholder="Title"
           value={formData.title}
           onChange={handleChange}
           required
         />
 
+        {/* Mô tả ngắn */}
         <textarea
-          id='brief'
-          className='border p-3 rounded-lg'
-          placeholder='Brief / mô tả ngắn'
+          id="brief"
+          className="border p-3 rounded-lg"
+          placeholder="Brief / mô tả ngắn"
           value={formData.brief}
           onChange={handleChange}
           rows={3}
         />
 
+        {/* Địa chỉ */}
         <input
-          type='text'
-          id='address'
-          className='border p-3 rounded-lg'
-          placeholder='Address'
+          type="text"
+          id="address"
+          className="border p-3 rounded-lg"
+          placeholder="Address"
           value={formData.address}
           onChange={handleChange}
         />
 
-        <div className='flex flex-wrap gap-4'>
-          <div className='flex flex-col flex-1 min-w-[120px]'>
-            <label className='text-sm text-slate-600 mb-1'>Diện tích (m²)</label>
+        {/* Diện tích + Đường vào nhà */}
+        <div className="flex flex-wrap gap-4">
+          <div className="flex flex-col flex-1 min-w-[120px]">
+            <label className="text-sm text-slate-600 mb-1">Diện tích (m²)</label>
             <input
-              type='number'
-              id='area_m2'
-              className='border p-3 rounded-lg'
+              type="number"
+              id="area_m2"
+              className="border p-3 rounded-lg"
               value={formData.area_m2}
               onChange={handleChange}
-              min='0'
+              min="0"
             />
           </div>
 
-          <div className='flex flex-col flex-1 min-w-[120px]'>
-            <label className='text-sm text-slate-600 mb-1'>
-              Đường trước nhà
+          <div className="flex flex-col flex-1 min-w-[120px]">
+            <label className="text-sm text-slate-600 mb-1">
+              Đường vào nhà (street_width)
             </label>
             <input
-              type='text'
-              id='duong_truoc_nha'
-              className='border p-3 rounded-lg'
-              value={formData.duong_truoc_nha}
+              type="text"
+              id="street_width"
+              className="border p-3 rounded-lg"
+              value={formData.street_width}
               onChange={handleChange}
-              placeholder='Ví dụ: 7,5m'
+              placeholder="Ví dụ: 7,5m"
             />
           </div>
         </div>
 
-        <div className='flex flex-col'>
-          <label className='text-sm text-slate-600 mb-1'>Pháp lý</label>
-          <input
-            type='text'
-            id='phap_ly'
-            className='border p-3 rounded-lg'
-            value={formData.phap_ly}
-            onChange={handleChange}
-            placeholder='Sổ hồng / Sổ đỏ...'
-          />
+        {/* Kích thước + Hướng */}
+        <div className="flex flex-wrap gap-4">
+          <div className="flex flex-col flex-1 min-w-[140px]">
+            <label className="text-sm text-slate-600 mb-1">Kích thước (size_text)</label>
+            <input
+              type="text"
+              id="size_text"
+              className="border p-3 rounded-lg"
+              value={formData.size_text}
+              onChange={handleChange}
+              placeholder="Ví dụ: 5x22m"
+            />
+          </div>
+
+          <div className="flex flex-col flex-1 min-w-[140px]">
+            <label className="text-sm text-slate-600 mb-1">Hướng</label>
+            <input
+              type="text"
+              id="direction"
+              className="border p-3 rounded-lg"
+              value={formData.direction}
+              onChange={handleChange}
+              placeholder="Ví dụ: Đông Bắc"
+            />
+          </div>
         </div>
 
-        <div className='flex flex-wrap gap-4'>
-          <div className='flex flex-col flex-1 min-w-[140px]'>
-            <label className='text-sm text-slate-600 mb-1'>
+        {/* Ảnh URL + preview */}
+        <div className="flex flex-col">
+          <label className="text-sm text-slate-600 mb-1">Ảnh (URL)</label>
+          <input
+            type="text"
+            id="image"
+            className="border p-3 rounded-lg"
+            value={formData.image}
+            onChange={handleChange}
+            placeholder="https://..."
+          />
+          {formData.image && (
+            <img
+              src={formData.image}
+              alt="Preview"
+              className="w-40 h-32 object-cover rounded border mt-2"
+            />
+          )}
+        </div>
+
+        {/* Giá */}
+        <div className="flex flex-wrap gap-4">
+          <div className="flex flex-col flex-1 min-w-[140px]">
+            <label className="text-sm text-slate-600 mb-1">
               Giá hiển thị (price_text)
             </label>
             <input
-              type='text'
-              id='price_text'
-              className='border p-3 rounded-lg'
+              type="text"
+              id="price_text"
+              className="border p-3 rounded-lg"
               value={formData.price_text}
               onChange={handleChange}
-              placeholder='Ví dụ: 6,5 tỷ'
+              placeholder="Ví dụ: 6,5 tỷ"
             />
           </div>
 
-          <div className='flex flex-col flex-1 min-w-[140px]'>
-            <label className='text-sm text-slate-600 mb-1'>
+          <div className="flex flex-col flex-1 min-w-[140px]">
+            <label className="text-sm text-slate-600 mb-1">
               Giá numeric (price_value)
             </label>
             <input
-              type='number'
-              id='price_value'
-              className='border p-3 rounded-lg'
+              type="number"
+              id="price_value"
+              className="border p-3 rounded-lg"
               value={formData.price_value}
               onChange={handleChange}
-              min='0'
-              placeholder='Ví dụ: 6180000000'
+              min="0"
+              placeholder="Ví dụ: 6180000000"
             />
           </div>
         </div>
 
         <button
-          type='submit'
+          type="submit"
           disabled={loading}
-          className='p-3 bg-slate-700 text-white rounded-lg uppercase hover:opacity-95 disabled:opacity-80'
+          className="p-3 bg-slate-700 text-white rounded-lg uppercase hover:opacity-95 disabled:opacity-80"
         >
           {loading ? 'Updating...' : 'Update crawled listing'}
         </button>
 
-        {error && <p className='text-red-700 text-sm mt-2'>{error}</p>}
+        {error && <p className="text-red-700 text-sm mt-2">{error}</p>}
       </form>
     </main>
   );

@@ -369,6 +369,9 @@ export const getCrawledListingById = async (req, res, next) => {
 
 // PUT /api/listing/crawl/:id
 // PUT /api/listing/crawl/:id
+// PUT /api/listing/crawl/:id
+// body cho phép sửa: title, brief, address, area_m2,
+// street_width, size_text, direction, price_text, price_value, image
 export const updateCrawledListing = async (req, res, next) => {
   try {
     if (!req.user?.isAdmin) {
@@ -386,10 +389,12 @@ export const updateCrawledListing = async (req, res, next) => {
       brief,
       address,
       area_m2,
-      duong_truoc_nha,
-      phap_ly,
+      street_width,
+      size_text,
+      direction,
       price_text,
       price_value,
+      image,
     } = req.body;
 
     const updateDoc = {};
@@ -397,19 +402,19 @@ export const updateCrawledListing = async (req, res, next) => {
     if (title !== undefined) updateDoc.title = title;
     if (brief !== undefined) updateDoc.brief = brief;
     if (address !== undefined) updateDoc.address = address;
-    if (duong_truoc_nha !== undefined) updateDoc.duong_truoc_nha = duong_truoc_nha;
-    if (phap_ly !== undefined) updateDoc.phap_ly = phap_ly;
+    if (street_width !== undefined) updateDoc.street_width = street_width;
+    if (size_text !== undefined) updateDoc.size_text = size_text;
+    if (direction !== undefined) updateDoc.direction = direction;
     if (price_text !== undefined) updateDoc.price_text = price_text;
+    if (image !== undefined) updateDoc.image = image;
 
     // ÉP KIỂU SỐ CHO area_m2
     if (area_m2 !== undefined) {
       const nArea = Number(area_m2);
       if (!Number.isNaN(nArea)) {
         updateDoc.area_m2 = nArea;
-      } else {
-        // nếu rỗng hoặc không phải số thì xoá field hoặc bỏ qua, tuỳ bạn
-        // ở đây mình bỏ qua để không ghi đè giá trị cũ
       }
+      // nếu NaN thì bỏ qua để không ghi đè giá trị cũ
     }
 
     // ÉP KIỂU SỐ CHO price_value (dùng để sort high/low)
@@ -418,7 +423,7 @@ export const updateCrawledListing = async (req, res, next) => {
       if (!Number.isNaN(nPrice)) {
         updateDoc.price_value = nPrice;
       }
-      // nếu NaN thì cũng bỏ qua, giữ nguyên giá trị cũ
+      // nếu NaN thì bỏ qua, giữ nguyên giá trị cũ
     }
 
     updateDoc.updated_at = new Date();

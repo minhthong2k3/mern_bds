@@ -100,6 +100,7 @@ export default function Listing() {
         listing.type === 'rent' ? ' / month' : ''
       }`;
     } else if (listing.price_text) {
+      // tin crawl dùng price_text
       displayPrice = listing.price_text;
     } else if (listing.price_value) {
       displayPrice =
@@ -179,33 +180,64 @@ export default function Listing() {
               </p>
             )}
 
-            {/* Thông tin riêng cho tin crawl */}
+            {/* Thông tin riêng cho tin crawl – dùng field mới */}
             {isCrawled && (
-              <div className='mt-3 flex flex-col gap-1 text-sm text-slate-700'>
-                {listing.price_text && (
-                  <p>
-                    <span className='font-semibold'>Giá: </span>
-                    {listing.price_text}
-                  </p>
-                )}
-                {listing.area_text && (
-                  <p>
-                    <span className='font-semibold'>Diện tích: </span>
-                    {listing.area_text}
-                  </p>
-                )}
-                {listing.duong_truoc_nha && (
-                  <p>
-                    <span className='font-semibold'>Đường trước nhà: </span>
-                    {listing.duong_truoc_nha}
-                  </p>
-                )}
-                {listing.phap_ly && (
-                  <p>
-                    <span className='font-semibold'>Pháp lý: </span>
-                    {listing.phap_ly}
-                  </p>
-                )}
+              <div className='mt-4 border rounded-lg p-4 bg-slate-50'>
+                <h2 className='text-lg font-semibold mb-2 text-slate-700'>
+                  Thông tin bất động sản (nguồn thu thập)
+                </h2>
+
+                <div className='grid grid-cols-1 sm:grid-cols-2 gap-y-1 gap-x-4 text-sm text-slate-700'>
+                  {/* Giá hiển thị */}
+                  {listing.price_text && (
+                    <p>
+                      <span className='font-semibold'>Giá: </span>
+                      {listing.price_text}
+                    </p>
+                  )}
+
+                  {/* Diện tích */}
+                  {(listing.area_m2 || listing.area_text) && (
+                    <p>
+                      <span className='font-semibold'>Diện tích: </span>
+                      {listing.area_m2
+                        ? `${listing.area_m2} m²`
+                        : listing.area_text}
+                    </p>
+                  )}
+
+                  {/* Kích thước (size_text) */}
+                  {listing.size_text && (
+                    <p>
+                      <span className='font-semibold'>Kích thước: </span>
+                      {listing.size_text}
+                    </p>
+                  )}
+
+                  {/* Đường vào nhà (street_width) */}
+                  {listing.street_width && (
+                    <p>
+                      <span className='font-semibold'>Đường vào nhà: </span>
+                      {listing.street_width}
+                    </p>
+                  )}
+
+                  {/* Hướng (direction) */}
+                  {listing.direction && (
+                    <p>
+                      <span className='font-semibold'>Hướng: </span>
+                      {listing.direction}
+                    </p>
+                  )}
+
+                  {/* Thời điểm đăng nếu có */}
+                  {listing.posted_time && (
+                    <p>
+                      <span className='font-semibold'>Thời điểm đăng: </span>
+                      {listing.posted_time}
+                    </p>
+                  )}
+                </div>
               </div>
             )}
 
