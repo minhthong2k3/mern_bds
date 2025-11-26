@@ -14,6 +14,10 @@ export default function Home() {
 
   SwiperCore.use([Navigation]);
 
+  // ảnh mặc định nếu listing không có image
+  const FALLBACK_IMG =
+    'https://53.fs1.hubspotusercontent-na1.net/hub/53/hubfs/Sales_Blog/real-estate-business-compressor.jpg?width=595&height=400&name=real-estate-business-compressor.jpg';
+
   // chuẩn hoá tin crawl cho ListingItem
   const normalizeCrawled = (doc) => ({
     ...doc,
@@ -59,7 +63,7 @@ export default function Home() {
 
     const fetchCrawledListings = async () => {
       try {
-        // lấy 4 tin crawl mới nhất (backend đã sort theo crawled_at)
+        // lấy 6 tin crawl mới nhất (backend đã sort theo crawled_at)
         const res = await fetch('/api/listing/crawl?limit=6');
         const data = await res.json();
         setCrawledListings(data.map(normalizeCrawled));
@@ -73,62 +77,85 @@ export default function Home() {
 
   return (
     <div>
-      {/* top */}
-      <div className='flex flex-col gap-6 p-28 px-3 max-w-6xl mx-auto'>
-        <h1 className='text-slate-700 font-bold text-3xl lg:text-6xl'>
-          Find your next <span className='text-slate-500'>perfect</span>
-          <br />
-          place with ease
-        </h1>
-        <div className='text-gray-400 text-xs sm:text-sm'>
-          DaNang Estate is the best place to find your next perfect place to
-          live.
-          <br />
-          We have a wide range of properties for you to choose from.
+      {/* HERO TOP */}
+      <div className="bg-slate-50/80">
+        <div className="max-w-6xl mx-auto px-3 py-16 lg:py-24 flex flex-col gap-6">
+          <p className="text-xs sm:text-sm font-semibold tracking-wide text-emerald-600 uppercase">
+            Bất động sản Đà Nẵng
+          </p>
+
+          <h1 className="text-slate-800 font-bold text-3xl sm:text-4xl lg:text-5xl leading-tight">
+            Tìm nơi ở tiếp theo
+            <br />
+            <span className="text-slate-500">phù hợp nhất cho bạn</span>
+          </h1>
+
+          <p className="text-slate-600 text-sm sm:text-base max-w-xl">
+            DaNang Estate giúp bạn dễ dàng tìm kiếm, đăng và quản lý bất động sản
+            tại Đà Nẵng – từ căn hộ, nhà phố cho đến đất nền và mặt bằng kinh doanh.
+          </p>
+
+          <div className="flex items-center gap-4">
+            <Link
+              to="/search"
+              className="inline-flex items-center justify-center rounded-full px-5 py-2.5 text-sm font-semibold bg-slate-800 text-white hover:bg-slate-900 transition"
+            >
+              Bắt đầu tìm kiếm
+            </Link>
+            <span className="hidden sm:inline text-xs sm:text-sm text-slate-500">
+              Hoặc kéo xuống để xem các tin mới nhất
+            </span>
+          </div>
         </div>
-        <Link
-          to={'/search'}
-          className='text-xs sm:text-sm text-blue-800 font-bold hover:underline'
-        >
-          Let's get started...
-        </Link>
       </div>
 
-      {/* swiper – dùng offerListings */}
-      <Swiper navigation>
-        {offerListings &&
-          offerListings.length > 0 &&
-          offerListings.map((listing) => (
-            <SwiperSlide key={listing._id}>
-              <div
-                style={{
-                  background: `url(${
-                    listing.imageUrls && listing.imageUrls[0]
-                  }) center no-repeat`,
-                  backgroundSize: 'cover',
-                }}
-                className='h-[500px]'
-              ></div>
-            </SwiperSlide>
-          ))}
-      </Swiper>
+      {/* SWIPER – chỉ hiển thị khi có offerListings */}
+      {offerListings && offerListings.length > 0 ? (
+        <Swiper navigation>
+          {offerListings.map((listing) => {
+            const bgImg =
+              (listing.imageUrls && listing.imageUrls[0]) || FALLBACK_IMG;
+
+            return (
+              <SwiperSlide key={listing._id}>
+                <div
+                  style={{
+                    background: `url(${bgImg}) center no-repeat`,
+                    backgroundSize: 'cover',
+                  }}
+                  className="h-[500px]"
+                ></div>
+              </SwiperSlide>
+            );
+          })}
+        </Swiper>
+      ) : (
+        // Nếu chưa có tin offer nào thì hiển thị 1 banner tĩnh
+        <div
+          className="h-[400px] w-full"
+          style={{
+            background: `url(${FALLBACK_IMG}) center no-repeat`,
+            backgroundSize: 'cover',
+          }}
+        ></div>
+      )}
 
       {/* listing results for offer, sale and rent */}
-      <div className='max-w-6xl mx-auto p-3 flex flex-col gap-8 my-10'>
+      <div className="max-w-6xl mx-auto p-3 flex flex-col gap-8 my-10">
         {offerListings && offerListings.length > 0 && (
           <div>
-            <div className='my-3'>
-              <h2 className='text-2xl font-semibold text-slate-600'>
-                Recent offers
+            <div className="my-3">
+              <h2 className="text-2xl font-semibold text-slate-600">
+                Tin ưu đãi mới nhất
               </h2>
               <Link
-                className='text-sm text-blue-800 hover:underline'
+                className="text-sm text-blue-800 hover:underline"
                 to={'/search?offer=true'}
               >
-                Show more offers
+                Xem thêm tin ưu đãi
               </Link>
             </div>
-            <div className='flex flex-wrap gap-4'>
+            <div className="flex flex-wrap gap-4">
               {offerListings.map((listing) => (
                 <ListingItem listing={listing} key={listing._id} />
               ))}
@@ -138,18 +165,18 @@ export default function Home() {
 
         {rentListings && rentListings.length > 0 && (
           <div>
-            <div className='my-3'>
-              <h2 className='text-2xl font-semibold text-slate-600'>
-                Recent places for rent
+            <div className="my-3">
+              <h2 className="text-2xl font-semibold text-slate-600">
+                Tin cho thuê mới nhất
               </h2>
               <Link
-                className='text-sm text-blue-800 hover:underline'
+                className="text-sm text-blue-800 hover:underline"
                 to={'/search?type=rent'}
               >
-                Show more places for rent
+                Xem thêm tin cho thuê
               </Link>
             </div>
-            <div className='flex flex-wrap gap-4'>
+            <div className="flex flex-wrap gap-4">
               {rentListings.map((listing) => (
                 <ListingItem listing={listing} key={listing._id} />
               ))}
@@ -159,18 +186,18 @@ export default function Home() {
 
         {saleListings && saleListings.length > 0 && (
           <div>
-            <div className='my-3'>
-              <h2 className='text-2xl font-semibold text-slate-600'>
-                Recent places for sale
+            <div className="my-3">
+              <h2 className="text-2xl font-semibold text-slate-600">
+                Tin bán mới nhất
               </h2>
               <Link
-                className='text-sm text-blue-800 hover:underline'
+                className="text-sm text-blue-800 hover:underline"
                 to={'/search?type=sale'}
               >
-                Show more places for sale
+                Xem thêm tin bán
               </Link>
             </div>
-            <div className='flex flex-wrap gap-4'>
+            <div className="flex flex-wrap gap-4">
               {saleListings.map((listing) => (
                 <ListingItem listing={listing} key={listing._id} />
               ))}
@@ -181,19 +208,18 @@ export default function Home() {
         {/* ✅ block tin crawl trên homepage */}
         {crawledListings && crawledListings.length > 0 && (
           <div>
-            <div className='my-3'>
-              <h2 className='text-2xl font-semibold text-slate-600'>
-                Crawled listings (Đà Nẵng)
+            <div className="my-3">
+              <h2 className="text-2xl font-semibold text-slate-600">
+                Tin thu thập từ các nguồn khác (Đà Nẵng)
               </h2>
-              {/* Search page đã có block crawl nên chỉ cần link tới /search */}
-              <Link
-                className='text-sm text-blue-800 hover:underline'
+            <Link
+                className="text-sm text-blue-800 hover:underline"
                 to={'/search'}
               >
-                Show more crawled listings
+                Xem thêm tin crawl
               </Link>
             </div>
-            <div className='flex flex-wrap gap-4'>
+            <div className="flex flex-wrap gap-4">
               {crawledListings.map((listing) => (
                 <ListingItem listing={listing} key={listing._id} />
               ))}
