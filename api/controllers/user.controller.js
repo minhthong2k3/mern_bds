@@ -226,3 +226,19 @@ export const adminUpdateUser = async (req, res, next) => {
     next(err);
   }
 };
+export const getPublicUser = async (req, res, next) => {
+  try {
+    const user = await User.findById(req.params.id).select(
+      'username email avatar isAdmin'
+    );
+
+    if (!user) {
+      return next(errorHandler(404, 'User not found'));
+    }
+
+    // chỉ trả về field an toàn, không password
+    res.status(200).json(user);
+  } catch (error) {
+    next(error);
+  }
+};

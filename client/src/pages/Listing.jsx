@@ -1,3 +1,4 @@
+// src/pages/Listing.jsx
 import { useEffect, useState } from 'react';
 import { useParams, useLocation } from 'react-router-dom';
 import { Swiper, SwiperSlide } from 'swiper/react';
@@ -238,6 +239,18 @@ export default function Listing() {
                     </p>
                   )}
                 </div>
+
+                {/* Link bài gốc nếu có */}
+                {listing.url && (
+                  <a
+                    href={listing.url}
+                    target='_blank'
+                    rel='noopener noreferrer'
+                    className='inline-block mt-3 text-sm text-blue-700 hover:underline'
+                  >
+                    Xem bài gốc trên Alonhadat
+                  </a>
+                )}
               </div>
             )}
 

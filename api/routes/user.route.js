@@ -10,6 +10,7 @@ import {
   adminDeleteUser,
   adminUpdateUser,
   adminGetUserListings,
+  getPublicUser,  
 } from '../controllers/user.controller.js';
 import { verifyToken } from '../utils/verifyUser.js';
 
@@ -32,5 +33,5 @@ router.get('/admin/:id/listings', verifyToken, adminGetUserListings);
 
 // ===== XEM THÔNG TIN 1 USER (chủ tài khoản hoặc admin) =====
 router.get('/:id', verifyToken, getUser);
-
+router.get('/public/:id', getPublicUser);
 export default router;
