@@ -78,7 +78,7 @@ export default function Home() {
   return (
     <div>
       {/* HERO TOP */}
-      <div className="bg-slate-50/80">
+      <div className="bg-slate-100">
         <div className="max-w-6xl mx-auto px-3 py-16 lg:py-24 flex flex-col gap-6">
           <p className="text-xs sm:text-sm font-semibold tracking-wide text-emerald-600 uppercase">
             Bất động sản Đà Nẵng

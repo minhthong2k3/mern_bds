@@ -11,10 +11,10 @@ export const createListing = async (req, res, next) => {
     // Không tin ai từ body cả, ép lại các field nhạy cảm
     const payload = {
       ...req.body,
-      userRef: req.user.id,    // luôn là user hiện tại
-      source: 'user',          // đánh dấu nguồn
-      status: 'pending',       // luôn chờ duyệt
-      rejectReason: '',        // rỗng
+      userRef: req.user.id, // luôn là user hiện tại
+      source: 'user', // đánh dấu nguồn
+      status: 'pending', // luôn chờ duyệt
+      rejectReason: '', // rỗng
     };
 
     // Nếu client cố gửi mấy field này thì cũng bỏ qua
@@ -100,7 +100,10 @@ export const updateListing = async (req, res, next) => {
         }
 
         // nếu admin reject mà không gửi lý do thì giữ lý do cũ (nếu có)
-        if (updateData.status === 'rejected' && updateData.rejectReason === undefined) {
+        if (
+          updateData.status === 'rejected' &&
+          updateData.rejectReason === undefined
+        ) {
           updateData.rejectReason = listing.rejectReason || '';
         }
       } else {
@@ -134,12 +137,15 @@ export const getListing = async (req, res, next) => {
 };
 
 // Public search: CHỈ hiển thị tin đã duyệt (approved)
+// Hỗ trợ 2 mode:
+// - Cũ: dùng limit + startIndex => trả về MẢNG listings (cho Home, v.v.)
+// - Mới: có query ?page=1,2,... => trả về { listings, total, page, pageSize, totalPages }
 export const getListings = async (req, res, next) => {
   try {
-    const limit = parseInt(req.query.limit) || 9;
-    const startIndex = parseInt(req.query.startIndex) || 0;
-    let offer = req.query.offer;
+    const usePagination = !!req.query.page;
 
+    // filter chung
+    let offer = req.query.offer;
     if (offer === undefined || offer === 'false') {
       offer = { $in: [false, true] };
     }
@@ -163,20 +169,54 @@ export const getListings = async (req, res, next) => {
     const sort = req.query.sort || 'createdAt';
     const order = req.query.order || 'desc';
 
-    const listings = await Listing.find({
+    const query = {
       name: { $regex: searchTerm, $options: 'i' },
       offer,
       furnished,
       parking,
       type,
-      status: 'approved',      // 👈 chỉ tin đã duyệt
-      source: 'user',          // 👈 chỉ tin user tự đăng (nếu muốn tách khỏi crawler)
-    })
-      .sort({ [sort]: order })
-      .limit(limit)
-      .skip(startIndex);
+      status: 'approved',
+      source: 'user',
+    };
 
-    return res.status(200).json(listings);
+    if (usePagination) {
+      // ========= MODE PHÂN TRANG (CHO /search) =========
+      const PAGE_SIZE = 20;
+      const MAX_TOTAL = 800;
+
+      const page = Math.max(parseInt(req.query.page) || 1, 1);
+
+      const totalAll = await Listing.countDocuments(query);
+      const total = Math.min(totalAll, MAX_TOTAL);
+
+      const skip = (page - 1) * PAGE_SIZE;
+
+      const listings = await Listing.find(query)
+        .sort({ [sort]: order }) // 'asc' | 'desc'
+        .limit(PAGE_SIZE)
+        .skip(skip);
+
+      const totalPages = Math.ceil(total / PAGE_SIZE) || 1;
+
+      return res.status(200).json({
+        listings,
+        total,
+        page,
+        pageSize: PAGE_SIZE,
+        totalPages,
+      });
+    } else {
+      // ========= MODE CŨ (CHO HOME, v.v.) =========
+      const limit = parseInt(req.query.limit) || 9;
+      const startIndex = parseInt(req.query.startIndex) || 0;
+
+      const listings = await Listing.find(query)
+        .sort({ [sort]: order })
+        .limit(limit)
+        .skip(startIndex);
+
+      return res.status(200).json(listings);
+    }
   } catch (error) {
     next(error);
   }
@@ -255,16 +295,16 @@ export const adminUpdateListingStatus = async (req, res, next) => {
 // =============== ĐỌC DỮ LIỆU CRAWL TỪ MongoDB ===============
 //
 
-// Phân trang: tối đa 100 tin, mỗi trang 20 tin
-// GET /api/listing/crawl?startIndex=0&searchTerm=&sort=regularPrice|createdAt&order=asc|desc
+// Phân trang: tối đa 200 tin, mỗi trang 20 tin
+// 2 mode như trên:
+// - Nếu có ?page=... => trả { listings, total, page, pageSize, totalPages }
+// - Nếu không có page => giữ mode cũ (limit + startIndex) trả mảng
 export const getCrawledListings = async (req, res, next) => {
   try {
     const PAGE_SIZE = 20; // 20 tin / 1 request
-    const MAX_TOTAL = 100; // tổng tối đa 100 tin
+    const MAX_TOTAL = 800; // tổng tối đa 200 tin
 
-    const startIndex = parseInt(req.query.startIndex) || 0;
-    const requestedLimit = parseInt(req.query.limit) || PAGE_SIZE;
-    let limit = Math.min(requestedLimit, PAGE_SIZE);
+    const usePagination = !!req.query.page;
 
     const searchTerm = req.query.searchTerm || '';
 
@@ -284,41 +324,40 @@ export const getCrawledListings = async (req, res, next) => {
       ];
     }
 
-    // Lấy tối đa 100 tin, chưa sort/skip (để tự chuẩn hoá & sort)
+    // Lấy tối đa MAX_TOTAL tin, chưa sort/skip (để tự chuẩn hoá & sort)
     const rawDocs = await col.find(filter).limit(MAX_TOTAL).toArray();
 
     // Chuẩn hoá giá & gắn key sort
-   const docsWithKey = rawDocs.map((doc) => {
-   let sortKey = 0;
+    const docsWithKey = rawDocs.map((doc) => {
+      let sortKey = 0;
 
-  if (sortParam === 'regularPrice') {
-    // luôn ép price_value về Number
-    let price = Number(doc.price_value);
-    if (Number.isNaN(price)) price = 0;
+      if (sortParam === 'regularPrice') {
+        // luôn ép price_value về Number
+        let price = Number(doc.price_value);
+        if (Number.isNaN(price)) price = 0;
 
-    const text = (doc.price_text || '').toLowerCase();
+        const text = (doc.price_text || '').toLowerCase();
 
-    const isPerM2 =
-      text.includes('/m2') ||
-      text.includes('/m²') ||
-      (text.includes('/m') && text.includes('triệu'));
+        const isPerM2 =
+          text.includes('/m2') ||
+          text.includes('/m²') ||
+          (text.includes('/m') && text.includes('triệu'));
 
-    if (isPerM2) {
-      let area = Number(doc.area_m2);
-      if (!Number.isNaN(area) && area > 0) {
-        price = price * area;
+        if (isPerM2) {
+          let area = Number(doc.area_m2);
+          if (!Number.isNaN(area) && area > 0) {
+            price = price * area;
+          }
+        }
+
+        sortKey = price;
+      } else {
+        const t = doc.crawled_at ? new Date(doc.crawled_at).getTime() : 0;
+        sortKey = t;
       }
-    }
 
-    sortKey = price;
-  } else {
-    const t = doc.crawled_at ? new Date(doc.crawled_at).getTime() : 0;
-    sortKey = t;
-  }
-
-  return { ...doc, _sortKey: sortKey };
-});
-
+      return { ...doc, _sortKey: sortKey };
+    });
 
     // Sort theo _sortKey
     docsWithKey.sort((a, b) => {
@@ -326,19 +365,54 @@ export const getCrawledListings = async (req, res, next) => {
       return b._sortKey - a._sortKey;
     });
 
-    // Phân trang trên mảng đã chuẩn hoá
     const total = Math.min(docsWithKey.length, MAX_TOTAL);
-    if (startIndex >= total) {
-      return res.status(200).json([]);
+
+    if (usePagination) {
+      // ========= MODE PHÂN TRANG (CHO /search) =========
+      const page = Math.max(parseInt(req.query.page) || 1, 1);
+      const skip = (page - 1) * PAGE_SIZE;
+
+      if (skip >= total) {
+        return res.status(200).json({
+          listings: [],
+          total,
+          page,
+          pageSize: PAGE_SIZE,
+          totalPages: Math.ceil(total / PAGE_SIZE) || 1,
+        });
+      }
+
+      const end = Math.min(skip + PAGE_SIZE, total);
+      const paged = docsWithKey.slice(skip, end);
+
+      const listings = paged.map(({ _sortKey, ...rest }) => rest);
+      const totalPages = Math.ceil(total / PAGE_SIZE) || 1;
+
+      return res.status(200).json({
+        listings,
+        total,
+        page,
+        pageSize: PAGE_SIZE,
+        totalPages,
+      });
+    } else {
+      // ========= MODE CŨ (CHO HOME, v.v.) =========
+      const requestedLimit = parseInt(req.query.limit) || PAGE_SIZE;
+      let limit = Math.min(requestedLimit, PAGE_SIZE);
+      const startIndex = parseInt(req.query.startIndex) || 0;
+
+      if (startIndex >= total) {
+        return res.status(200).json([]);
+      }
+
+      const end = Math.min(startIndex + limit, total);
+      const paged = docsWithKey.slice(startIndex, end);
+
+      // bỏ _sortKey trước khi trả về
+      const result = paged.map(({ _sortKey, ...rest }) => rest);
+
+      return res.status(200).json(result);
     }
-
-    const end = Math.min(startIndex + limit, total);
-    const paged = docsWithKey.slice(startIndex, end);
-
-    // bỏ _sortKey trước khi trả về
-    const result = paged.map(({ _sortKey, ...rest }) => rest);
-
-    res.status(200).json(result);
   } catch (error) {
     next(error);
   }
@@ -368,8 +442,6 @@ export const getCrawledListingById = async (req, res, next) => {
 // ================= ADMIN: UPDATE / DELETE CRAWLED LISTING =================
 
 // PUT /api/listing/crawl/:id
-// PUT /api/listing/crawl/:id
-// PUT /api/listing/crawl/:id
 // body cho phép sửa: title, brief, address, area_m2,
 // street_width, size_text, direction, price_text, price_value, image
 export const updateCrawledListing = async (req, res, next) => {
@@ -383,7 +455,6 @@ export const updateCrawledListing = async (req, res, next) => {
     const collectionName = 'alonhadat_da_nang';
     const col = mongoose.connection.db.collection(collectionName);
 
-    // những field cho phép sửa (có thể thêm/bớt tuỳ bạn)
     let {
       title,
       brief,
@@ -414,7 +485,6 @@ export const updateCrawledListing = async (req, res, next) => {
       if (!Number.isNaN(nArea)) {
         updateDoc.area_m2 = nArea;
       }
-      // nếu NaN thì bỏ qua để không ghi đè giá trị cũ
     }
 
     // ÉP KIỂU SỐ CHO price_value (dùng để sort high/low)
@@ -423,7 +493,6 @@ export const updateCrawledListing = async (req, res, next) => {
       if (!Number.isNaN(nPrice)) {
         updateDoc.price_value = nPrice;
       }
-      // nếu NaN thì bỏ qua, giữ nguyên giá trị cũ
     }
 
     updateDoc.updated_at = new Date();
@@ -443,7 +512,6 @@ export const updateCrawledListing = async (req, res, next) => {
     next(error);
   }
 };
-
 
 // DELETE /api/listing/crawl/:id
 export const deleteCrawledListing = async (req, res, next) => {

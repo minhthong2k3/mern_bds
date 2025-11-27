@@ -20,12 +20,13 @@ export default function Search() {
   const [listings, setListings] = useState([]);
   const [showMore, setShowMore] = useState(false);
 
-  // dữ liệu crawl
+  // ====== DỮ LIỆU CRAWL + PHÂN TRANG ======
   const [crawledListings, setCrawledListings] = useState([]);
-  const [crawledShowMore, setCrawledShowMore] = useState(false);
+  const [crawledPage, setCrawledPage] = useState(1);
 
   const CRAWLED_PAGE_SIZE = 20;
-  const CRAWLED_MAX_TOTAL = 100;
+  const CRAWLED_MAX_TOTAL = 800; // tối đa 800 tin
+  const CRAWLED_MAX_PAGES = CRAWLED_MAX_TOTAL / CRAWLED_PAGE_SIZE; // 40 trang
 
   // map dữ liệu crawl về format mà ListingItem hiểu được
   const normalizeCrawled = (doc) => ({
@@ -47,6 +48,14 @@ export default function Search() {
     const offerFromUrl = urlParams.get('offer');
     const sortFromUrl = urlParams.get('sort');
     const orderFromUrl = urlParams.get('order');
+
+    // đọc trang hiện tại của tin crawl từ URL
+    const crawlPageFromUrl = parseInt(urlParams.get('crawlPage') || '1', 10);
+    const safePage =
+      Number.isNaN(crawlPageFromUrl) || crawlPageFromUrl < 1
+        ? 1
+        : Math.min(crawlPageFromUrl, CRAWLED_MAX_PAGES);
+    setCrawledPage(safePage);
 
     if (
       searchTermFromUrl ||
@@ -83,30 +92,25 @@ export default function Search() {
       setLoading(false);
     };
 
-    const fetchCrawledListings = async () => {
+    const fetchCrawledListings = async (page) => {
       try {
-        // trang đầu tiên của crawl: startIndex = 0, page size = 20
         const crawlParams = new URLSearchParams(urlParams.toString());
-        crawlParams.set('startIndex', 0);
+        const startIndex = (page - 1) * CRAWLED_PAGE_SIZE;
+
+        crawlParams.set('startIndex', startIndex.toString());
+        crawlParams.set('limit', CRAWLED_PAGE_SIZE.toString());
 
         const res = await fetch(`/api/listing/crawl?${crawlParams.toString()}`);
         const data = await res.json();
 
         setCrawledListings(data.map(normalizeCrawled));
-
-        // nếu đủ 20 tin và tổng < 100 thì còn trang tiếp
-        if (data.length === CRAWLED_PAGE_SIZE && data.length < CRAWLED_MAX_TOTAL) {
-          setCrawledShowMore(true);
-        } else {
-          setCrawledShowMore(false);
-        }
       } catch (err) {
         console.error('Error fetching crawled listings:', err);
       }
     };
 
     fetchListings();
-    fetchCrawledListings();
+    fetchCrawledListings(safePage);
   }, [location.search]);
 
   const handleChange = (e) => {
@@ -150,6 +154,10 @@ export default function Search() {
     urlParams.set('offer', sidebardata.offer);
     urlParams.set('sort', sidebardata.sort);
     urlParams.set('order', sidebardata.order);
+
+    // reset về trang 1 khi search/filter
+    urlParams.set('crawlPage', '1');
+
     const searchQuery = urlParams.toString();
     navigate(`/search?${searchQuery}`);
   };
@@ -168,29 +176,12 @@ export default function Search() {
     setListings([...listings, ...data]);
   };
 
-  // phân trang tin crawl: 20 tin / lần, tối đa 100 tin
-  const onShowMoreCrawledClick = async () => {
-    const currentCount = crawledListings.length;
-
-    // nếu đã đủ 100 tin thì thôi
-    if (currentCount >= CRAWLED_MAX_TOTAL) {
-      setCrawledShowMore(false);
-      return;
-    }
-
+  // đổi trang tin crawl
+  const handleCrawledPageChange = (page) => {
+    if (page < 1 || page > CRAWLED_MAX_PAGES) return;
     const urlParams = new URLSearchParams(location.search);
-    urlParams.set('startIndex', currentCount);
-
-    const res = await fetch(`/api/listing/crawl?${urlParams.toString()}`);
-    const data = await res.json();
-
-    const newList = [...crawledListings, ...data.map(normalizeCrawled)];
-    setCrawledListings(newList);
-
-    // nếu số tin trả về < 20 hoặc đã >= 100 thì tắt nút Show more
-    if (data.length < CRAWLED_PAGE_SIZE || newList.length >= CRAWLED_MAX_TOTAL) {
-      setCrawledShowMore(false);
-    }
+    urlParams.set('crawlPage', page.toString());
+    navigate(`/search?${urlParams.toString()}`);
   };
 
   return (
@@ -303,7 +294,7 @@ export default function Search() {
         </form>
       </div>
 
-      {/* KẾT QUẢ */}
+      {/* KẾT QUẢ LISTING USER */}
       <div className='flex-1 min-w-0'>
         <h1 className='text-3xl font-semibold border-b p-3 text-slate-700 mt-5'>
           Listing results:
@@ -347,14 +338,45 @@ export default function Search() {
               ))}
             </div>
 
-            {crawledShowMore && (
+            {/* PHÂN TRANG – DÃY SỐ TRANG */}
+            <div className='flex justify-center items-center gap-2 flex-wrap pb-8'>
               <button
-                onClick={onShowMoreCrawledClick}
-                className='text-green-700 hover:underline p-7 text-center w-full'
+                className='px-3 py-1 text-sm border rounded-full disabled:opacity-40'
+                onClick={() => handleCrawledPageChange(crawledPage - 1)}
+                disabled={crawledPage === 1}
               >
-                Show more crawled listings
+                Trước
               </button>
-            )}
+
+              {Array.from({ length: CRAWLED_MAX_PAGES }, (_, idx) => {
+                const page = idx + 1;
+                const isActive = page === crawledPage;
+                return (
+                  <button
+                    key={page}
+                    onClick={() => handleCrawledPageChange(page)}
+                    className={`px-3 py-1 text-sm rounded-full border min-w-[36px] text-center ${
+                      isActive
+                        ? 'bg-slate-700 text-white border-slate-700'
+                        : 'bg-white text-slate-700 hover:bg-slate-100'
+                    }`}
+                  >
+                    {page}
+                  </button>
+                );
+              })}
+
+              <button
+                className='px-3 py-1 text-sm border rounded-full disabled:opacity-40'
+                onClick={() => handleCrawledPageChange(crawledPage + 1)}
+                disabled={
+                  crawledPage === CRAWLED_MAX_PAGES ||
+                  crawledListings.length < CRAWLED_PAGE_SIZE
+                }
+              >
+                Sau
+              </button>
+            </div>
           </>
         )}
       </div>

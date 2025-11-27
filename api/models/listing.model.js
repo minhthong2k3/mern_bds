@@ -69,8 +69,8 @@ const listingSchema = new mongoose.Schema(
       default: '',
     },
 
-    // ================== PHẦN MỚI THÊM (PHỤC VỤ CRAWL) ==================
-    // đánh dấu nguồn: user tự đăng hay data crawl
+    // ================== PHẦN MỚI THÊM (PHỤC VỤ CRAWL / ĐỒNG BỘ) ==================
+    // đánh dấu nguồn: user tự đăng hay đồng bộ từ crawler
     source: {
       type: String,
       enum: ['user', 'crawler'],
@@ -102,11 +102,25 @@ const listingSchema = new mongoose.Schema(
       type: String,
     },
 
-    // các thông tin bổ sung từ crawler
-    duongTruocNha: {
+    // ===== các thông tin bổ sung mới từ crawler =====
+
+    // Đường vào nhà: map từ street_width (VD: "7,5m")
+    streetWidth: {
       type: String,
     },
-    phapLy: {
+
+    // Kích thước: map từ size_text (VD: "KT: 5x22m")
+    sizeText: {
+      type: String,
+    },
+
+    // Hướng: map từ direction (VD: "Đông Bắc")
+    direction: {
+      type: String,
+    },
+
+    // Ảnh chính (URL) – map từ image
+    image: {
       type: String,
     },
   },
