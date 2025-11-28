@@ -1,3 +1,4 @@
+// src/pages/Search.jsx
 import { useEffect, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import ListingItem from '../components/ListingItem';
@@ -14,6 +15,10 @@ export default function Search() {
     offer: false,
     sort: 'createdAt',
     order: 'desc',
+    // bộ lọc riêng cho tin crawl
+    ward: '',
+    direction: '',
+    streetWidth: '',
   });
 
   const [loading, setLoading] = useState(false);
@@ -27,6 +32,45 @@ export default function Search() {
   const CRAWLED_PAGE_SIZE = 20;
   const CRAWLED_MAX_TOTAL = 800; // tối đa 800 tin
   const CRAWLED_MAX_PAGES = CRAWLED_MAX_TOTAL / CRAWLED_PAGE_SIZE; // 40 trang
+
+  // OPTIONS cho 3 bộ lọc mới
+  const wardOptions = [
+    { value: '', label: 'Tất cả phường' },
+    { value: 'An Hải', label: 'An Hải' },
+    { value: 'Hòa Cường', label: 'Hòa Cường' },
+    { value: 'Ngũ Hành Sơn', label: 'Ngũ Hành Sơn' },
+    { value: 'Hải Châu', label: 'Hải Châu' },
+    { value: 'Sơn Trà', label: 'Sơn Trà' },
+    { value: 'Liên Chiểu', label: 'Liên Chiểu' },
+    { value: 'Thanh Khê', label: 'Thanh Khê' },
+    { value: 'Cẩm Lệ', label: 'Cẩm Lệ' },
+  ];
+
+  const directionOptions = [
+    { value: '', label: 'Tất cả hướng' },
+    { value: 'Bắc', label: 'Bắc' },
+    { value: 'Đông', label: 'Đông' },
+    { value: 'Tây', label: 'Tây' },
+    { value: 'Nam', label: 'Nam' },
+    { value: 'Đông Bắc', label: 'Đông Bắc' },
+    { value: 'Tây Bắc', label: 'Tây Bắc' },
+    { value: 'Đông Nam', label: 'Đông Nam' },
+    { value: 'Tây Nam', label: 'Tây Nam' },
+  ];
+
+  const streetWidthOptions = [
+    { value: '', label: 'Tất cả đường vào' },
+    { value: '3m', label: '≈ 3m' },
+    { value: '3,5m', label: '≈ 3,5m' },
+    { value: '4m', label: '≈ 4m' },
+    { value: '5m', label: '≈ 5m' },
+    { value: '6m', label: '≈ 6m' },
+    { value: '7,5m', label: '≈ 7,5m' },
+    { value: '8m', label: '≈ 8m' },
+    { value: '10m', label: '≈ 10m' },
+    { value: '12m', label: '≈ 12m' },
+    { value: '15m', label: '≈ 15m' },
+  ];
 
   // map dữ liệu crawl về format mà ListingItem hiểu được
   const normalizeCrawled = (doc) => ({
@@ -49,6 +93,11 @@ export default function Search() {
     const sortFromUrl = urlParams.get('sort');
     const orderFromUrl = urlParams.get('order');
 
+    // 3 bộ lọc mới
+    const wardFromUrl = urlParams.get('ward') || '';
+    const directionFromUrl = urlParams.get('direction') || '';
+    const streetWidthFromUrl = urlParams.get('streetWidth') || '';
+
     // đọc trang hiện tại của tin crawl từ URL
     const crawlPageFromUrl = parseInt(urlParams.get('crawlPage') || '1', 10);
     const safePage =
@@ -64,7 +113,10 @@ export default function Search() {
       furnishedFromUrl ||
       offerFromUrl ||
       sortFromUrl ||
-      orderFromUrl
+      orderFromUrl ||
+      wardFromUrl ||
+      directionFromUrl ||
+      streetWidthFromUrl
     ) {
       setSidebardata({
         searchTerm: searchTermFromUrl || '',
@@ -74,6 +126,9 @@ export default function Search() {
         offer: offerFromUrl === 'true',
         sort: sortFromUrl || 'createdAt',
         order: orderFromUrl || 'desc',
+        ward: wardFromUrl,
+        direction: directionFromUrl,
+        streetWidth: streetWidthFromUrl,
       });
     }
 
@@ -83,12 +138,12 @@ export default function Search() {
       const searchQuery = urlParams.toString(); // có cả sort & order
       const res = await fetch(`/api/listing/get?${searchQuery}`);
       const data = await res.json();
-      if (data.length > 8) {
+      if (Array.isArray(data) && data.length > 8) {
         setShowMore(true);
       } else {
         setShowMore(false);
       }
-      setListings(data);
+      setListings(Array.isArray(data) ? data : data.listings || []);
       setLoading(false);
     };
 
@@ -103,7 +158,7 @@ export default function Search() {
         const res = await fetch(`/api/listing/crawl?${crawlParams.toString()}`);
         const data = await res.json();
 
-        setCrawledListings(data.map(normalizeCrawled));
+        setCrawledListings((Array.isArray(data) ? data : data.listings || []).map(normalizeCrawled));
       } catch (err) {
         console.error('Error fetching crawled listings:', err);
       }
@@ -114,33 +169,44 @@ export default function Search() {
   }, [location.search]);
 
   const handleChange = (e) => {
-    if (
-      e.target.id === 'all' ||
-      e.target.id === 'rent' ||
-      e.target.id === 'sale'
-    ) {
-      setSidebardata({ ...sidebardata, type: e.target.id });
+    const { id, value, type, checked } = e.target;
+
+    // type (all / rent / sale)
+    if (id === 'all' || id === 'rent' || id === 'sale') {
+      setSidebardata((prev) => ({ ...prev, type: id }));
+      return;
     }
 
-    if (e.target.id === 'searchTerm') {
-      setSidebardata({ ...sidebardata, searchTerm: e.target.value });
+    if (id === 'searchTerm') {
+      setSidebardata((prev) => ({ ...prev, searchTerm: value }));
+      return;
     }
 
-    if (
-      e.target.id === 'parking' ||
-      e.target.id === 'furnished' ||
-      e.target.id === 'offer'
-    ) {
-      setSidebardata({
-        ...sidebardata,
-        [e.target.id]: e.target.checked ? true : false,
-      });
+    if (id === 'parking' || id === 'furnished' || id === 'offer') {
+      setSidebardata((prev) => ({
+        ...prev,
+        [id]: type === 'checkbox' ? checked : value,
+      }));
+      return;
     }
 
-    if (e.target.id === 'sort_order') {
-      const sort = e.target.value.split('_')[0] || 'createdAt';
-      const order = e.target.value.split('_')[1] || 'desc';
-      setSidebardata({ ...sidebardata, sort, order });
+    if (id === 'sort_order') {
+      const [sort, order] = value.split('_');
+      setSidebardata((prev) => ({
+        ...prev,
+        sort: sort || 'createdAt',
+        order: order || 'desc',
+      }));
+      return;
+    }
+
+    // 3 ô select mới
+    if (id === 'ward' || id === 'direction' || id === 'streetWidth') {
+      setSidebardata((prev) => ({
+        ...prev,
+        [id]: value,
+      }));
+      return;
     }
   };
 
@@ -154,6 +220,12 @@ export default function Search() {
     urlParams.set('offer', sidebardata.offer);
     urlParams.set('sort', sidebardata.sort);
     urlParams.set('order', sidebardata.order);
+
+    // 3 filter mới
+    if (sidebardata.ward) urlParams.set('ward', sidebardata.ward);
+    if (sidebardata.direction) urlParams.set('direction', sidebardata.direction);
+    if (sidebardata.streetWidth)
+      urlParams.set('streetWidth', sidebardata.streetWidth);
 
     // reset về trang 1 khi search/filter
     urlParams.set('crawlPage', '1');
@@ -170,10 +242,10 @@ export default function Search() {
     const searchQuery = urlParams.toString();
     const res = await fetch(`/api/listing/get?${searchQuery}`);
     const data = await res.json();
-    if (data.length < 9) {
+    if (!Array.isArray(data) || data.length < 9) {
       setShowMore(false);
     }
-    setListings([...listings, ...data]);
+    setListings([...listings, ...(Array.isArray(data) ? data : data.listings || [])]);
   };
 
   // đổi trang tin crawl
@@ -277,14 +349,61 @@ export default function Search() {
             <label className='font-semibold'>Sort:</label>
             <select
               onChange={handleChange}
-              defaultValue={'createdAt_desc'}
               id='sort_order'
               className='border rounded-lg p-3'
+              value={`${sidebardata.sort}_${sidebardata.order}`}
             >
               <option value='regularPrice_desc'>Price high to low</option>
               <option value='regularPrice_asc'>Price low to hight</option>
               <option value='createdAt_desc'>Latest</option>
               <option value='createdAt_asc'>Oldest</option>
+            </select>
+          </div>
+
+          {/* Lọc thêm cho tin crawl */}
+          <div className='flex flex-col gap-3'>
+            <p className='font-semibold'>Lọc thêm cho tin crawl (Đà Nẵng):</p>
+
+            {/* Phường */}
+            <select
+              id='ward'
+              className='border rounded-lg p-3 w-full text-sm'
+              value={sidebardata.ward}
+              onChange={handleChange}
+            >
+              {wardOptions.map((opt) => (
+                <option key={opt.value || 'all'} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
+            </select>
+
+            {/* Hướng nhà */}
+            <select
+              id='direction'
+              className='border rounded-lg p-3 w-full text-sm'
+              value={sidebardata.direction}
+              onChange={handleChange}
+            >
+              {directionOptions.map((opt) => (
+                <option key={opt.value || 'all'} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
+            </select>
+
+            {/* Đường vào nhà */}
+            <select
+              id='streetWidth'
+              className='border rounded-lg p-3 w-full text-sm'
+              value={sidebardata.streetWidth}
+              onChange={handleChange}
+            >
+              {streetWidthOptions.map((opt) => (
+                <option key={opt.value || 'all'} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
             </select>
           </div>
 

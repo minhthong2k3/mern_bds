@@ -302,11 +302,16 @@ export const adminUpdateListingStatus = async (req, res, next) => {
 export const getCrawledListings = async (req, res, next) => {
   try {
     const PAGE_SIZE = 20; // 20 tin / 1 request
-    const MAX_TOTAL = 800; // tổng tối đa 200 tin
+    const MAX_TOTAL = 800; // tổng tối đa 800 tin
 
     const usePagination = !!req.query.page;
 
     const searchTerm = req.query.searchTerm || '';
+
+    // ====== 3 field mới ======
+    const ward = (req.query.ward || '').trim();          // phường (tìm trong address)
+    const direction = (req.query.direction || '').trim(); // hướng nhà
+    const streetWidth = (req.query.streetWidth || '').trim(); // đường trước nhà
 
     // sort/order từ frontend
     const sortParam = req.query.sort || 'createdAt';
@@ -317,11 +322,30 @@ export const getCrawledListings = async (req, res, next) => {
     const col = mongoose.connection.db.collection(collectionName);
 
     const filter = {};
+
+    // searchTerm: tìm trong title / address
     if (searchTerm) {
       filter.$or = [
         { title: { $regex: searchTerm, $options: 'i' } },
         { address: { $regex: searchTerm, $options: 'i' } },
       ];
+    }
+
+    // ====== ÁP DỤNG THÊM CÁC BỘ LỌC MỚI (AND với filter trên) ======
+
+    // ward: tìm trong address – ví dụ "An Hải" hoặc "Phường An Hải"
+    if (ward) {
+      filter.address = { $regex: ward, $options: 'i' };
+    }
+
+    // direction: ví dụ "Đông Bắc", "Bắc"
+    if (direction) {
+      filter.direction = { $regex: direction, $options: 'i' };
+    }
+
+    // streetWidth: ví dụ "7,5" hoặc "7m" – chỉ cần chứa chuỗi user nhập
+    if (streetWidth) {
+      filter.street_width = { $regex: streetWidth, $options: 'i' };
     }
 
     // Lấy tối đa MAX_TOTAL tin, chưa sort/skip (để tự chuẩn hoá & sort)
@@ -417,6 +441,7 @@ export const getCrawledListings = async (req, res, next) => {
     next(error);
   }
 };
+
 
 // GET /api/listing/crawl/:id
 export const getCrawledListingById = async (req, res, next) => {

@@ -144,7 +144,7 @@ export default function Analysis() {
   return (
     <div className="max-w-6xl mx-auto p-5">
       <h1 className="text-3xl font-bold text-slate-700 mb-4">
-        🧠 Phân tích dữ liệu BĐS Đà Nẵng
+        Phân tích dữ liệu BĐS Đà Nẵng
       </h1>
 
       {/* 2 nút chuyển chế độ */}
@@ -178,7 +178,7 @@ export default function Analysis() {
           {/* GÓI 1: Phường */}
           <section>
             <h2 className="text-2xl font-semibold text-slate-700 mb-2">
-              📌 Gói 1: Phân tích theo Phường
+            Phân tích 1: Phân tích theo Phường
             </h2>
             <p className="text-slate-600 mb-3 text-sm">
               Bảng xếp hạng phường theo giá trung bình/m² (cao → thấp). Cột % là
@@ -229,7 +229,7 @@ export default function Analysis() {
           {/* GÓI 3: Hướng nhà */}
           <section>
             <h2 className="text-2xl font-semibold text-slate-700 mb-2">
-              🧭 Gói 3: Phân tích theo hướng nhà
+            Phân tích 2: Phân tích theo hướng nhà
             </h2>
             <p className="text-slate-600 mb-3 text-sm">
               Thống kê số lượng tin, diện tích & giá trung bình theo từng hướng.
@@ -276,7 +276,7 @@ export default function Analysis() {
           {/* GÓI 4: Độ rộng đường */}
           <section className="pb-10">
             <h2 className="text-2xl font-semibold text-slate-700 mb-2">
-              🛣️ Gói 4: Phân tích theo độ rộng đường (street_width)
+                Phân tích 3: Phân tích theo độ rộng đường (street_width)
             </h2>
             <p className="text-slate-600 mb-3 text-sm">
               Gộp thành các khoảng: Dưới 4m, 4–6m, 6–8m, 8–10m, Trên 10m.
@@ -328,7 +328,7 @@ export default function Analysis() {
           {/* Gói 1 */}
           <section>
             <h2 className="text-2xl font-semibold text-slate-700 mb-3">
-              📊 Gói 1: Giá đất trung bình theo Phường
+                Phân Tích 1: Giá đất trung bình theo Phường
             </h2>
             <div className="bg-white p-4 rounded-lg shadow-md">
               <Bar data={wardChart} />
@@ -338,7 +338,7 @@ export default function Analysis() {
           {/* Gói 3 */}
           <section>
             <h2 className="text-2xl font-semibold text-slate-700 mb-3">
-              🧭 Gói 3: Giá đất trung bình theo hướng nhà
+                Phân Tích 2: Giá đất trung bình theo hướng nhà
             </h2>
             <div className="bg-white p-4 rounded-lg shadow-md w-full md:w-[500px]">
               <Pie data={directionChart} />
@@ -348,7 +348,7 @@ export default function Analysis() {
           {/* Gói 4 */}
           <section>
             <h2 className="text-2xl font-semibold text-slate-700 mb-3">
-              🛣️ Gói 4: Giá đất trung bình theo độ rộng đường
+                Phân Tích 3: Giá đất trung bình theo độ rộng đường
             </h2>
             <div className="bg-white p-4 rounded-lg shadow-md">
               <Line data={streetChart} />
