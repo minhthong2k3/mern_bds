@@ -39,3 +39,5 @@ app.use((err, req, res, next) => {
     message,
   });
 });
+import analysisRouter from './routes/analysis.route.js';
+app.use('/api/analysis', analysisRouter);

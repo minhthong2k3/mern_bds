@@ -16,6 +16,8 @@ import EditCrawledListing from './pages/EditCrawledListing';
 // 👇 import thêm 2 page quản lý tin
 import UserListingManager from './pages/UserListingManager';
 import AdminListingManager from './pages/AdminListingManager';
+import Analysis from './pages/Analysis';
+
 
 export default function App() {
   return (
@@ -29,6 +31,7 @@ export default function App() {
           <Route path='/sign-up' element={<SignUp />} />
           <Route path='/about' element={<About />} />
           <Route path='/search' element={<Search />} />
+          <Route path="/analysis" element={<Analysis />} />
 
           {/* xem chi tiết listing user */}
           <Route path='/listing/:listingId' element={<Listing />} />
