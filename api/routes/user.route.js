@@ -32,6 +32,7 @@ router.delete('/admin/delete/:id', verifyToken, adminDeleteUser);
 router.get('/admin/:id/listings', verifyToken, adminGetUserListings);
 
 // ===== XEM THÔNG TIN 1 USER (chủ tài khoản hoặc admin) =====
-router.get('/:id', verifyToken, getUser);
 router.get('/public/:id', getPublicUser);
+router.get('/:id', verifyToken, getUser);
+
 export default router;
