@@ -1,3 +1,4 @@
+import 'dotenv/config';
 import express from 'express';
 import mongoose from 'mongoose';
 import dotenv from 'dotenv';
@@ -5,6 +6,9 @@ import userRouter from './routes/user.route.js';
 import authRouter from './routes/auth.route.js';
 import listingRouter from './routes/listing.route.js';
 import cookieParser from 'cookie-parser';
+import imagekitRouter from './routes/imagekit.route.js';
+import analysisRouter from './routes/analysis.route.js';
+
 dotenv.config();
 
 mongoose
@@ -29,7 +33,8 @@ app.listen(3000, () => {
 app.use('/api/user', userRouter);
 app.use('/api/auth', authRouter);
 app.use('/api/listing', listingRouter);
-
+app.use('/api/imagekit', imagekitRouter);
+app.use('/api/analysis', analysisRouter);
 app.use((err, req, res, next) => {
   const statusCode = err.statusCode || 500;
   const message = err.message || 'Internal Server Error';
@@ -39,5 +44,5 @@ app.use((err, req, res, next) => {
     message,
   });
 });
-import analysisRouter from './routes/analysis.route.js';
-app.use('/api/analysis', analysisRouter);
+
+

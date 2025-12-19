@@ -1,13 +1,7 @@
 // src/pages/Profile.jsx
 import { useSelector, useDispatch } from 'react-redux';
 import { useRef, useState, useEffect } from 'react';
-import {
-  getDownloadURL,
-  getStorage,
-  ref,
-  uploadBytesResumable,
-} from 'firebase/storage';
-import { app } from '../firebase';
+
 import {
   updateUserStart,
   updateUserSuccess,
@@ -43,33 +37,102 @@ export default function Profile() {
   // 'listings' | 'users' | null
   const [activeSection, setActiveSection] = useState(null);
 
-  // upload avatar
+  // ====== IMAGEKIT upload avatar ======
+  const IMAGEKIT_UPLOAD_URL = 'https://upload.imagekit.io/api/v1/files/upload';
+  const FALLBACK_PUBLIC_KEY = 'public_WJ0ZrBs/mTD1Fv70YslbRWmKGx0='; // fallback nếu backend không trả publicKey
+
+  const uploadAvatarToImageKit = async (selectedFile) => {
+    // reset UI
+    setFilePerc(0);
+    setFileUploadError(false);
+
+    // basic validate
+    const maxBytes = 2 * 1024 * 1024; // 2MB
+    if (!selectedFile) return;
+    if (selectedFile.size > maxBytes) {
+      setFileUploadError('Ảnh quá lớn (tối đa 2MB).');
+      return;
+    }
+
+    try {
+      // 1) lấy chữ ký upload từ server
+      const authRes = await fetch('/api/imagekit/auth');
+      const authData = await authRes.json();
+
+      if (authData?.success === false) {
+        setFileUploadError(authData.message || 'Không lấy được chữ ký upload ImageKit.');
+        return;
+      }
+
+      const token = authData?.token;
+      const expire = authData?.expire;
+      const signature = authData?.signature;
+      const publicKey = authData?.publicKey || FALLBACK_PUBLIC_KEY;
+
+      if (!token || !expire || !signature) {
+        setFileUploadError('Thiếu token/expire/signature từ server.');
+        return;
+      }
+
+      // 2) upload lên ImageKit bằng XHR để có progress
+      const uploaded = await new Promise((resolve, reject) => {
+        const form = new FormData();
+        form.append('file', selectedFile);
+        form.append(
+          'fileName',
+          `avatar_${currentUser?._id || 'user'}_${Date.now()}_${selectedFile.name}`
+        );
+        form.append('folder', '/avatars'); // bạn có thể đổi folder
+        form.append('publicKey', publicKey);
+        form.append('signature', signature);
+        form.append('expire', String(expire));
+        form.append('token', token);
+
+        const xhr = new XMLHttpRequest();
+        xhr.open('POST', IMAGEKIT_UPLOAD_URL, true);
+
+        xhr.upload.onprogress = (event) => {
+          if (!event.lengthComputable) return;
+          const percent = Math.round((event.loaded / event.total) * 100);
+          setFilePerc(percent);
+        };
+
+        xhr.onload = () => {
+          try {
+            const resJson = JSON.parse(xhr.responseText || '{}');
+            if (xhr.status >= 200 && xhr.status < 300) {
+              resolve(resJson);
+            } else {
+              reject(resJson);
+            }
+          } catch (e) {
+            reject(new Error('Upload failed: invalid response'));
+          }
+        };
+
+        xhr.onerror = () => reject(new Error('Upload failed: network error'));
+        xhr.send(form);
+      });
+
+      // 3) set avatar url vào formData để submit update user
+      if (!uploaded?.url) {
+        setFileUploadError('Upload xong nhưng không nhận được URL ảnh.');
+        return;
+      }
+
+      setFormData((prev) => ({ ...prev, avatar: uploaded.url }));
+      setFilePerc(100);
+    } catch (err) {
+      console.error(err);
+      setFileUploadError('Upload avatar thất bại.');
+    }
+  };
+
+  // upload avatar khi chọn file
   useEffect(() => {
-    if (file) handleFileUpload(file);
+    if (file) uploadAvatarToImageKit(file);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [file]);
-
-  const handleFileUpload = (file) => {
-    const storage = getStorage(app);
-    const fileName = new Date().getTime() + file.name;
-    const storageRef = ref(storage, fileName);
-    const uploadTask = uploadBytesResumable(storageRef, file);
-
-    uploadTask.on(
-      'state_changed',
-      (snapshot) => {
-        const progress =
-          (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
-        setFilePerc(Math.round(progress));
-      },
-      () => setFileUploadError(true),
-      () => {
-        getDownloadURL(uploadTask.snapshot.ref).then((downloadURL) =>
-          setFormData((prev) => ({ ...prev, avatar: downloadURL }))
-        );
-      }
-    );
-  };
 
   const handleChange = (e) => {
     setFormData((prev) => ({ ...prev, [e.target.id]: e.target.value }));
@@ -249,13 +312,13 @@ export default function Profile() {
           hidden
           accept='image/*'
           ref={fileRef}
-          onChange={(e) => setFile(e.target.files[0])}
+          onChange={(e) => setFile(e.target.files?.[0])}
         />
 
         {/* Avatar + nút Quản lý tin (user thường) */}
         <div className='flex items-center justify-center gap-3 mt-2'>
           <img
-            onClick={() => fileRef.current.click()}
+            onClick={() => fileRef.current?.click()}
             src={formData.avatar || currentUser.avatar}
             alt='profile'
             className='rounded-full h-24 w-24 object-cover cursor-pointer'
@@ -274,7 +337,9 @@ export default function Profile() {
         <p className='text-sm self-center'>
           {fileUploadError ? (
             <span className='text-red-700'>
-              Error Image upload (image must be less than 2 mb)
+              {typeof fileUploadError === 'string'
+                ? fileUploadError
+                : 'Error Image upload (image must be less than 2 mb)'}
             </span>
           ) : filePerc > 0 && filePerc < 100 ? (
             <span className='text-slate-700'>{`Uploading ${filePerc}%`}</span>
@@ -316,7 +381,7 @@ export default function Profile() {
           {loading ? 'Loading...' : 'Update'}
         </button>
 
-                {/* User thường mới có nút create listing + quản lý tin của mình */}
+        {/* User thường mới có nút create listing + quản lý tin của mình */}
         {!isAdmin && (
           <>
             <Link
@@ -334,7 +399,6 @@ export default function Profile() {
             </Link>
           </>
         )}
-
       </form>
 
       {/* DELETE / SIGN OUT */}
@@ -358,7 +422,6 @@ export default function Profile() {
       </p>
 
       {/* BUTTONS SHOW LISTINGS / USERS */}
-            {/* BUTTONS SHOW LISTINGS / USERS */}
       <div className='flex flex-col gap-2 mt-6'>
         <button
           onClick={handleShowListings}
@@ -376,7 +439,6 @@ export default function Profile() {
               Show Users
             </button>
 
-            {/* ✅ Nút mở trang quản lý tin theo trạng thái */}
             <Link
               to='/admin/listings'
               className='w-full text-center border rounded-lg py-2 mt-1 text-purple-700 hover:bg-purple-50 uppercase text-sm font-semibold'
@@ -386,7 +448,6 @@ export default function Profile() {
           </>
         )}
       </div>
-
 
       {/* lỗi listings chỉ hiện khi đang xem tab listings */}
       {activeSection === 'listings' && (
@@ -456,7 +517,6 @@ export default function Profile() {
                 key={item._id}
                 className='border rounded-lg p-3 flex justify-between items-center gap-4'
               >
-                {/* click vào text để xem chi tiết như cũ */}
                 <Link
                   to={`/crawl/${item._id}`}
                   className='flex flex-col flex-1 overflow-hidden'
@@ -480,7 +540,6 @@ export default function Profile() {
                     Delete
                   </button>
 
-                  {/* EDIT: mở trang form chỉnh sửa */}
                   <Link to={`/admin/crawl-edit/${item._id}`}>
                     <button className='text-green-700 uppercase'>Edit</button>
                   </Link>
@@ -519,9 +578,7 @@ export default function Profile() {
                       Delete
                     </button>
                     <Link to={`/admin/users/${user._id}`}>
-                      <button className='text-green-700 uppercase'>
-                        Edit
-                      </button>
+                      <button className='text-green-700 uppercase'>Edit</button>
                     </Link>
                   </>
                 )}
